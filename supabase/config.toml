@@ -1,1 +1,4 @@
 project_id = "ljwkylnzurldtsyrsvxe"
+
+[functions.ai-scheduling-assistant]
+verify_jwt = false

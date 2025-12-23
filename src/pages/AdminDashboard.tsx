@@ -15,6 +15,7 @@ import {
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import AISchedulingAssistant from '@/components/admin/AISchedulingAssistant';
 
 const AdminDashboard: React.FC = () => {
   const { 
@@ -66,6 +67,11 @@ const AdminDashboard: React.FC = () => {
         <p className="text-caption text-muted-foreground">
           Manage rosters, approvals, and hospital operations
         </p>
+      </div>
+
+      {/* AI Scheduling Assistant */}
+      <div className="animate-slide-up">
+        <AISchedulingAssistant />
       </div>
 
       {/* Generate Roster Card */}
