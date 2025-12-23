@@ -219,11 +219,10 @@ const AISchedulingAssistant: React.FC = () => {
     }
   };
 
-  const applySuggestions = () => {
+  const applySuggestions = async () => {
     if (!suggestion) return;
     
-    applyAISuggestions(suggestion.assignments, targetDate);
-    toast.success('AI suggestions applied to roster!');
+    await applyAISuggestions(suggestion.assignments, targetDate);
     setSuggestion(null);
   };
 
