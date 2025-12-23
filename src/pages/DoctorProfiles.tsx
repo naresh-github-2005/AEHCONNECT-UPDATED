@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { SeniorityLevel, MedicalSpecialty } from '@/lib/mockData';
+import { SeniorityLevel, MedicalSpecialty, DesignationLevel } from '@/lib/mockData';
 import {
   Dialog,
   DialogContent,
@@ -33,6 +33,10 @@ interface Doctor {
   department: string;
   seniority: SeniorityLevel;
   specialty: MedicalSpecialty;
+  designation: DesignationLevel;
+  performance_score: number;
+  unit: string;
+  eligible_duties: string[] | null;
   max_night_duties_per_month: number;
   max_hours_per_week: number;
   fixed_off_days: string[] | null;
@@ -59,6 +63,20 @@ const seniorityColors: Record<SeniorityLevel, string> = {
   'fellow': 'bg-green-500/10 text-green-600 border-green-200',
   'resident': 'bg-orange-500/10 text-orange-600 border-orange-200',
   'intern': 'bg-gray-500/10 text-gray-600 border-gray-200',
+};
+
+const designationLabels: Record<DesignationLevel, string> = {
+  'consultant': 'Consultant',
+  'mo': 'MO',
+  'fellow': 'Fellow',
+  'pg': 'PG',
+};
+
+const designationColors: Record<DesignationLevel, string> = {
+  'consultant': 'bg-purple-500/10 text-purple-600 border-purple-200',
+  'mo': 'bg-blue-500/10 text-blue-600 border-blue-200',
+  'fellow': 'bg-green-500/10 text-green-600 border-green-200',
+  'pg': 'bg-orange-500/10 text-orange-600 border-orange-200',
 };
 
 const specialtyLabels: Record<MedicalSpecialty, string> = {
@@ -164,14 +182,19 @@ const DoctorProfiles: React.FC = () => {
         />
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-5 gap-2">
-        {Object.entries(seniorityLabels).map(([key, label]) => {
-          const count = doctors.filter(d => d.seniority === key).length;
+      {/* Stats by Designation */}
+      <div className="grid grid-cols-4 gap-2">
+        {Object.entries(designationLabels).map(([key, label]) => {
+          const count = doctors.filter(d => d.designation === key).length;
+          const avgScore = Math.round(
+            doctors.filter(d => d.designation === key).reduce((sum, d) => sum + (d.performance_score || 0), 0) / 
+            Math.max(count, 1)
+          );
           return (
-            <div key={key} className="p-2 rounded-lg bg-muted/50 text-center">
-              <p className="text-lg font-bold">{count}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{label}s</p>
+            <div key={key} className={`p-3 rounded-lg text-center border ${designationColors[key as DesignationLevel]}`}>
+              <p className="text-xl font-bold">{count}</p>
+              <p className="text-xs font-medium">{label}s</p>
+              <p className="text-[10px] text-muted-foreground">Avg: {avgScore}%</p>
             </div>
           );
         })}
@@ -202,11 +225,14 @@ const DoctorProfiles: React.FC = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <Badge variant="outline" className={`text-[10px] ${seniorityColors[doctor.seniority]}`}>
-                        {seniorityLabels[doctor.seniority]}
+                      <Badge variant="outline" className={`text-[10px] ${designationColors[doctor.designation]}`}>
+                        {designationLabels[doctor.designation]}
                       </Badge>
                       <span className="text-tiny text-muted-foreground capitalize">
                         {specialtyLabels[doctor.specialty]}
+                      </span>
+                      <span className="text-tiny font-medium text-primary">
+                        {doctor.performance_score}%
                       </span>
                     </div>
                   </div>
