@@ -14,6 +14,7 @@ const dutyColors: Record<DutyType, string> = {
   'Night Duty': 'duty-night',
   'Ward': 'duty-ward',
   'Camp': 'duty-camp',
+  'Emergency': 'bg-red-500/20 text-red-700 border border-red-200',
 };
 
 export const DutyBadge: React.FC<DutyBadgeProps> = ({ type, className }) => {
