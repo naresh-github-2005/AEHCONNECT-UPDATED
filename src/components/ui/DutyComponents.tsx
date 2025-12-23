@@ -93,10 +93,11 @@ interface DoctorAvatarProps {
 }
 
 export const DoctorAvatar: React.FC<DoctorAvatarProps> = ({ name, size = 'md', className }) => {
-  const initials = name
+  const safeName = name || 'Unknown';
+  const initials = safeName
     .split(' ')
     .filter((part) => part.startsWith('Dr.') === false)
-    .map((part) => part[0])
+    .map((part) => part[0] || '')
     .join('')
     .toUpperCase()
     .slice(0, 2);
