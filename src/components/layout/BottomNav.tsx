@@ -8,7 +8,9 @@ import {
   FileText, 
   BarChart3, 
   Settings,
-  LogOut 
+  LogOut,
+  Tent,
+  Users
 } from 'lucide-react';
 
 interface NavItem {
@@ -24,6 +26,11 @@ const navItems: NavItem[] = [
   { icon: FileText, label: 'Leave', path: '/leave' },
   { icon: BarChart3, label: 'Analytics', path: '/analytics', adminOnly: true },
   { icon: Settings, label: 'Admin', path: '/admin', adminOnly: true },
+];
+
+const adminNavItems: NavItem[] = [
+  { icon: Tent, label: 'Camps', path: '/camps', adminOnly: true },
+  { icon: Users, label: 'Doctors', path: '/doctors', adminOnly: true },
 ];
 
 export const BottomNav: React.FC = () => {

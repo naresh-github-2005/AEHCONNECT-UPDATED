@@ -13,6 +13,8 @@ import Roster from "./pages/Roster";
 import Leave from "./pages/Leave";
 import AdminDashboard from "./pages/AdminDashboard";
 import Analytics from "./pages/Analytics";
+import CampManagement from "./pages/CampManagement";
+import DoctorProfiles from "./pages/DoctorProfiles";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -106,6 +108,28 @@ const AppRoutes: React.FC = () => {
           <ProtectedRoute adminOnly>
             <AppLayout>
               <Analytics />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/camps"
+        element={
+          <ProtectedRoute adminOnly>
+            <AppLayout>
+              <CampManagement />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/doctors"
+        element={
+          <ProtectedRoute adminOnly>
+            <AppLayout>
+              <DoctorProfiles />
             </AppLayout>
           </ProtectedRoute>
         }
