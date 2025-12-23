@@ -1,14 +1,15 @@
 import React from 'react';
 import { Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DutyType } from '@/lib/mockData';
+
+type DutyType = string;
 
 interface DutyBadgeProps {
   type: DutyType;
   className?: string;
 }
 
-const dutyColors: Record<DutyType, string> = {
+const dutyColors: Record<string, string> = {
   'OPD': 'duty-opd',
   'OT': 'duty-ot',
   'Night Duty': 'duty-night',
@@ -27,7 +28,7 @@ export const DutyBadge: React.FC<DutyBadgeProps> = ({ type, className }) => {
     <span
       className={cn(
         'inline-flex items-center px-2.5 py-1 rounded-full text-tiny font-medium',
-        dutyColors[type],
+        dutyColors[type] || 'bg-muted text-muted-foreground',
         className
       )}
     >

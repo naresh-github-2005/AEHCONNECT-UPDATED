@@ -1,39 +1,109 @@
 import React, { useState, useMemo } from 'react';
-import { useData } from '@/contexts/DataContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { DutyBadge, PhoneButton, DoctorAvatar } from '@/components/ui/DutyComponents';
-import { DutyType } from '@/lib/mockData';
-import { Search, Filter, X } from 'lucide-react';
+import { Search, Filter, X, ArrowLeftRight, RefreshCw, Wifi } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { useRealtimeDutyAssignments, DutyWithDoctor } from '@/hooks/useRealtimeData';
+import { useAuth } from '@/contexts/AuthContext';
+import { SwapRequestDialog } from '@/components/roster/SwapRequestDialog';
+import { SwapRequestsList } from '@/components/roster/SwapRequestsList';
+import type { Database } from '@/integrations/supabase/types';
+
+type DutyType = Database['public']['Enums']['duty_type'];
 
 const dutyTypes: DutyType[] = ['OPD', 'OT', 'Night Duty', 'Ward', 'Camp'];
 
 const Roster: React.FC = () => {
-  const { dutyAssignments, lastUpdated } = useData();
+  const { user } = useAuth();
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const { assignments, isLoading, refetch } = useRealtimeDutyAssignments(today);
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<DutyType | null>(null);
+  const [swapDialogOpen, setSwapDialogOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<DutyWithDoctor | null>(null);
 
   const filteredAssignments = useMemo(() => {
-    return dutyAssignments.filter((assignment) => {
+    return assignments.filter((assignment) => {
       const matchesSearch = assignment.doctor.name
         .toLowerCase()
         .includes(searchQuery.toLowerCase());
-      const matchesFilter = !selectedFilter || assignment.dutyType === selectedFilter;
+      const matchesFilter = !selectedFilter || assignment.duty_type === selectedFilter;
       return matchesSearch && matchesFilter;
     });
-  }, [dutyAssignments, searchQuery, selectedFilter]);
+  }, [assignments, searchQuery, selectedFilter]);
+
+  const myAssignments = useMemo(() => {
+    if (!user?.doctorId) return [];
+    return assignments.filter(a => a.doctor_id === user.doctorId);
+  }, [assignments, user?.doctorId]);
+
+  const handleSwapRequest = (assignment: DutyWithDoctor) => {
+    setSelectedAssignment(assignment);
+    setSwapDialogOpen(true);
+  };
 
   return (
     <div className="px-4 py-6 space-y-4">
       {/* Header */}
-      <div className="animate-fade-in">
-        <h2 className="text-title text-foreground">Daily Roster</h2>
-        <p className="text-caption text-muted-foreground">
-          {format(new Date(), 'EEEE, MMMM d, yyyy')}
-        </p>
+      <div className="animate-fade-in flex items-start justify-between">
+        <div>
+          <h2 className="text-title text-foreground">Daily Roster</h2>
+          <p className="text-caption text-muted-foreground">
+            {format(new Date(), 'EEEE, MMMM d, yyyy')}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 text-xs text-green-600">
+            <Wifi className="w-3 h-3" />
+            <span>Live</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={refetch}>
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
+
+      {/* Swap Requests */}
+      <SwapRequestsList />
+
+      {/* My Duties Section (for doctors) */}
+      {user?.role === 'doctor' && myAssignments.length > 0 && (
+        <div className="space-y-2 animate-slide-up">
+          <h3 className="text-sm font-medium text-foreground">Your Duties Today</h3>
+          <div className="space-y-2">
+            {myAssignments.map((assignment) => (
+              <Card key={assignment.id} className="border-primary/30 bg-primary/5">
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <DutyBadge type={assignment.duty_type} />
+                      <div>
+                        <p className="font-medium text-sm">{assignment.unit}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {assignment.start_time} — {assignment.end_time}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSwapRequest(assignment)}
+                      className="gap-1"
+                    >
+                      <ArrowLeftRight className="w-4 h-4" />
+                      Swap
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative animate-slide-up">
@@ -93,52 +163,94 @@ const Roster: React.FC = () => {
       {/* Results Count */}
       <div className="flex items-center justify-between animate-fade-in stagger-2">
         <p className="text-caption text-muted-foreground">
-          Showing {filteredAssignments.length} of {dutyAssignments.length} duties
+          Showing {filteredAssignments.length} of {assignments.length} duties
         </p>
       </div>
 
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center py-8">
+          <RefreshCw className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
+          <p className="text-sm text-muted-foreground mt-2">Loading roster...</p>
+        </div>
+      )}
+
       {/* Roster List */}
-      <div className="space-y-3 animate-slide-up stagger-2">
-        {filteredAssignments.map((assignment, index) => (
-          <Card 
-            key={assignment.id} 
-            className="shadow-soft card-interactive overflow-hidden"
-            style={{ animationDelay: `${0.03 * index}s` }}
-          >
-            <CardContent className="py-4 px-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 flex-1 min-w-0">
-                  <DoctorAvatar name={assignment.doctor.name} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-body font-medium text-foreground truncate">
-                      {assignment.doctor.name}
-                    </p>
-                    <p className="text-tiny text-muted-foreground mt-0.5">
-                      {assignment.unit}
-                    </p>
-                    <div className="flex items-center gap-3 mt-2">
-                      <DutyBadge type={assignment.dutyType} />
-                      <span className="text-tiny text-muted-foreground">
-                        {assignment.startTime} — {assignment.endTime}
-                      </span>
+      {!isLoading && (
+        <div className="space-y-3 animate-slide-up stagger-2">
+          {filteredAssignments.map((assignment, index) => (
+            <Card 
+              key={assignment.id} 
+              className={cn(
+                "shadow-soft card-interactive overflow-hidden",
+                assignment.doctor_id === user?.doctorId && "ring-1 ring-primary/30"
+              )}
+              style={{ animationDelay: `${0.03 * index}s` }}
+            >
+              <CardContent className="py-4 px-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <DoctorAvatar name={assignment.doctor.name} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-body font-medium text-foreground truncate">
+                        {assignment.doctor.name}
+                        {assignment.doctor_id === user?.doctorId && (
+                          <span className="ml-2 text-xs text-primary">(You)</span>
+                        )}
+                      </p>
+                      <p className="text-tiny text-muted-foreground mt-0.5">
+                        {assignment.unit}
+                      </p>
+                      <div className="flex items-center gap-3 mt-2">
+                        <DutyBadge type={assignment.duty_type} />
+                        <span className="text-tiny text-muted-foreground">
+                          {assignment.start_time} — {assignment.end_time}
+                        </span>
+                      </div>
                     </div>
                   </div>
+                  <div className="flex items-center gap-2">
+                    {user?.role === 'doctor' && assignment.doctor_id !== user?.doctorId && myAssignments.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          // Use the first of my assignments to request swap
+                          setSelectedAssignment(myAssignments[0]);
+                          setSwapDialogOpen(true);
+                        }}
+                        className="h-8 px-2"
+                        title="Request swap"
+                      >
+                        <ArrowLeftRight className="w-4 h-4" />
+                      </Button>
+                    )}
+                    <PhoneButton phone={assignment.doctor.phone} size="sm" />
+                  </div>
                 </div>
-                <PhoneButton phone={assignment.doctor.phone} size="sm" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))}
 
-        {filteredAssignments.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-body text-muted-foreground">No duties found</p>
-            <p className="text-caption text-muted-foreground mt-1">
-              Try adjusting your search or filters
-            </p>
-          </div>
-        )}
-      </div>
+          {filteredAssignments.length === 0 && !isLoading && (
+            <div className="text-center py-12">
+              <p className="text-body text-muted-foreground">No duties found</p>
+              <p className="text-caption text-muted-foreground mt-1">
+                Try adjusting your search or filters
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Swap Dialog */}
+      {selectedAssignment && (
+        <SwapRequestDialog
+          open={swapDialogOpen}
+          onOpenChange={setSwapDialogOpen}
+          myAssignment={selectedAssignment}
+        />
+      )}
     </div>
   );
 };
