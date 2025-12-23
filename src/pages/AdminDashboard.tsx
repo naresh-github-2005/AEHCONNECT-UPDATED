@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,10 @@ import {
   Sparkles, 
   Clock,
   FileText,
-  AlertTriangle 
+  AlertTriangle,
+  Tent,
+  Users,
+  ChevronRight
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +22,7 @@ import { cn } from '@/lib/utils';
 import AISchedulingAssistant from '@/components/admin/AISchedulingAssistant';
 
 const AdminDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { 
     dutyAssignments, 
     leaveRequests, 
@@ -67,6 +72,49 @@ const AdminDashboard: React.FC = () => {
         <p className="text-caption text-muted-foreground">
           Manage rosters, approvals, and hospital operations
         </p>
+      </div>
+
+      {/* Quick Admin Links */}
+      <div className="grid grid-cols-2 gap-3 animate-slide-up">
+        <Card 
+          className="shadow-soft cursor-pointer hover:border-primary/50 transition-colors"
+          onClick={() => navigate('/camps')}
+        >
+          <CardContent className="py-4 px-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                  <Tent className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-body font-medium text-foreground">Camps</p>
+                  <p className="text-tiny text-muted-foreground">Eye camps</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card 
+          className="shadow-soft cursor-pointer hover:border-primary/50 transition-colors"
+          onClick={() => navigate('/doctors')}
+        >
+          <CardContent className="py-4 px-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-body font-medium text-foreground">Doctors</p>
+                  <p className="text-tiny text-muted-foreground">Profiles</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* AI Scheduling Assistant */}
