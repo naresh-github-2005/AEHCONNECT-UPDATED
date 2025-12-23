@@ -1,9 +1,11 @@
 // Mock data for Hospital Duty Management System
 
-export type DutyType = 'OPD' | 'OT' | 'Night Duty' | 'Ward' | 'Camp';
-export type LeaveType = 'Casual' | 'Emergency';
+export type DutyType = 'OPD' | 'OT' | 'Night Duty' | 'Ward' | 'Camp' | 'Emergency';
+export type LeaveType = 'Casual' | 'Emergency' | 'Medical' | 'Annual';
 export type LeaveStatus = 'Pending' | 'Approved' | 'Rejected';
 export type UserRole = 'doctor' | 'admin';
+export type SeniorityLevel = 'intern' | 'resident' | 'fellow' | 'consultant' | 'senior_consultant';
+export type MedicalSpecialty = 'general' | 'cornea' | 'retina' | 'glaucoma' | 'oculoplasty' | 'pediatric' | 'neuro' | 'cataract';
 
 export interface Doctor {
   id: string;
@@ -11,6 +13,42 @@ export interface Doctor {
   phone: string;
   department: string;
   avatar?: string;
+  seniority?: SeniorityLevel;
+  specialty?: MedicalSpecialty;
+  max_night_duties_per_month?: number;
+  max_hours_per_week?: number;
+  fixed_off_days?: string[];
+  health_constraints?: string;
+  can_do_opd?: boolean;
+  can_do_ot?: boolean;
+  can_do_ward?: boolean;
+  can_do_camp?: boolean;
+  can_do_night?: boolean;
+}
+
+export interface Camp {
+  id: string;
+  name: string;
+  location: string;
+  camp_date: string;
+  start_time: string;
+  end_time: string;
+  required_doctors: number;
+  specialty_required?: MedicalSpecialty;
+  notes?: string;
+}
+
+export interface DoctorDutyStats {
+  id: string;
+  doctor_id: string;
+  month: number;
+  year: number;
+  night_duty_count: number;
+  weekend_duty_count: number;
+  total_hours: number;
+  camp_count: number;
+  opd_sessions: number;
+  ot_sessions: number;
 }
 
 export interface DutyAssignment {

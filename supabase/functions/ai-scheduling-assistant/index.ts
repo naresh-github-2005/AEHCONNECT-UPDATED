@@ -11,66 +11,172 @@ serve(async (req) => {
   }
 
   try {
-    const { doctors, leaveRequests, existingAssignments, targetDate } = await req.json();
+    const { doctors, leaveRequests, existingAssignments, targetDate, dutyStats, camps } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log("Processing scheduling request for date:", targetDate);
+    console.log("Processing advanced scheduling request for date:", targetDate);
     console.log("Doctors count:", doctors?.length);
     console.log("Leave requests count:", leaveRequests?.length);
-    console.log("Existing assignments count:", existingAssignments?.length);
+    console.log("Duty stats count:", dutyStats?.length);
+    console.log("Camps count:", camps?.length);
 
-    const systemPrompt = `You are an intelligent hospital duty scheduling assistant. Your role is to create optimal duty assignments for doctors based on:
-1. Doctor availability (considering approved leave requests)
-2. Workload balance (distribute duties fairly across doctors)
-3. Department coverage (ensure all units are covered)
-4. Night duty rotation (fair distribution of night duties)
+    const systemPrompt = `You are an intelligent hospital duty scheduling assistant for an eye hospital (Aravind Eye Hospital model). Your role is to create OPTIMAL and FAIR duty assignments considering:
 
-Duty types available: OPD, OT, Ward, Night Duty, Camp, Emergency
-Units available: General OPD, Surgery OT, Medical Ward, ICU, Emergency Room, Pediatrics
+## SENIORITY HIERARCHY (must be respected)
+- senior_consultant: Senior-most, minimal night duties, can supervise all
+- consultant: Experienced, moderate night duties, leads OT teams
+- fellow: Post-graduate fellow, learning advanced procedures
+- resident: Regular duty rotations, more night duties
+- intern: Learning phase, no OT leadership, most flexible
 
-Rules:
-- Each doctor should have at most one duty per day
-- Doctors on approved leave cannot be assigned
-- Night duty should rotate fairly
-- Ensure at least one doctor in Emergency at all times
-- Balance workload based on recent assignment history
+## SPECIALTY MATCHING (critical for patient care)
+- cornea: Corneal procedures, transplants
+- retina: Retinal surgeries, laser procedures
+- glaucoma: Glaucoma surgeries, monitoring
+- oculoplasty: Eyelid, orbit surgeries
+- pediatric: Children's eye care
+- neuro: Neuro-ophthalmology
+- cataract: Cataract surgeries (high volume)
+- general: General OPD, screening
 
-Respond with a JSON object containing:
+## DUTY TYPES & REQUIREMENTS
+- OPD: Outpatient clinics (all levels can do, specialty matching preferred)
+- OT: Operation theatre (fellows+ only, specialty matching required)
+- Ward: Post-op care, rounds (all levels)
+- Night Duty: Emergency coverage (respect max_night_duties_per_month limit)
+- Camp: Eye camps (only if can_do_camp=true, seniors preferred for leadership)
+- Emergency: Emergency room (24/7 coverage required)
+
+## FAIRNESS RULES (CRITICAL)
+1. Track night duty count - don't exceed max_night_duties_per_month
+2. Distribute weekend duties fairly across similar seniority levels
+3. Respect fixed_off_days (e.g., religious observances, childcare)
+4. Consider health_constraints (pregnancy, medical conditions)
+5. Balance total working hours per week (max_hours_per_week limit)
+6. Ensure residents get learning opportunities in different specialties
+7. Senior consultants should NOT do night duties unless absolutely necessary
+
+## CAPABILITY RESTRICTIONS
+- can_do_opd: false means no OPD assignments
+- can_do_ot: false means no OT assignments (interns typically)
+- can_do_ward: false means no ward duties
+- can_do_camp: false means no camp assignments
+- can_do_night: false means no night duty assignments
+
+## CAMP SCHEDULING PRIORITY
+- Camps override regular duties
+- Match specialty_required if specified
+- Senior presence required for camp leadership
+- Ensure adequate staffing for camp duration
+
+## OUTPUT FORMAT
+Respond with a JSON object:
 {
   "assignments": [
     {
       "doctorId": "uuid",
       "doctorName": "name",
+      "seniority": "level",
+      "specialty": "specialty",
       "dutyType": "OPD|OT|Ward|Night Duty|Camp|Emergency",
       "unit": "unit name",
       "startTime": "HH:MM",
       "endTime": "HH:MM",
-      "reason": "brief explanation"
+      "reason": "brief explanation for this specific assignment"
     }
   ],
-  "reasoning": "overall explanation of the scheduling decisions",
+  "reasoning": "overall explanation of scheduling decisions and fairness considerations",
   "workloadSummary": {
     "balanced": true/false,
-    "notes": "any concerns or recommendations"
-  }
+    "fairnessScore": 0-100,
+    "concerns": ["list of any fairness or coverage concerns"],
+    "notes": "recommendations or warnings"
+  },
+  "campAssignments": [
+    {
+      "campId": "uuid",
+      "campName": "name",
+      "assignedDoctors": [{"doctorId": "uuid", "doctorName": "name", "role": "lead|support"}]
+    }
+  ]
 }`;
 
-    const userPrompt = `Please create optimal duty assignments for ${targetDate}.
+    // Build detailed doctor info with constraints
+    const doctorDetails = doctors?.map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      department: d.department,
+      seniority: d.seniority || 'resident',
+      specialty: d.specialty || 'general',
+      maxNightDutiesPerMonth: d.max_night_duties_per_month || 8,
+      maxHoursPerWeek: d.max_hours_per_week || 48,
+      fixedOffDays: d.fixed_off_days || [],
+      healthConstraints: d.health_constraints || null,
+      capabilities: {
+        canDoOpd: d.can_do_opd !== false,
+        canDoOt: d.can_do_ot !== false,
+        canDoWard: d.can_do_ward !== false,
+        canDoCamp: d.can_do_camp === true,
+        canDoNight: d.can_do_night !== false
+      }
+    })) || [];
 
-Available Doctors:
-${JSON.stringify(doctors, null, 2)}
+    // Build duty stats context
+    const statsContext = dutyStats?.map((s: any) => ({
+      doctorId: s.doctor_id,
+      month: s.month,
+      year: s.year,
+      nightDutyCount: s.night_duty_count,
+      weekendDutyCount: s.weekend_duty_count,
+      totalHours: s.total_hours,
+      campCount: s.camp_count
+    })) || [];
 
-Approved Leave Requests (doctors unavailable):
-${JSON.stringify(leaveRequests?.filter((l: any) => l.status === 'approved') || [], null, 2)}
+    // Build camp info
+    const campDetails = camps?.map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      location: c.location,
+      date: c.camp_date,
+      startTime: c.start_time,
+      endTime: c.end_time,
+      requiredDoctors: c.required_doctors,
+      specialtyRequired: c.specialty_required,
+      notes: c.notes
+    })) || [];
 
-Recent/Existing Assignments (for workload context):
-${JSON.stringify(existingAssignments || [], null, 2)}
+    const userPrompt = `Create optimal duty assignments for ${targetDate}.
 
-Create a balanced schedule ensuring all critical units are covered and workload is distributed fairly.`;
+## AVAILABLE DOCTORS (with constraints)
+${JSON.stringify(doctorDetails, null, 2)}
+
+## LEAVE REQUESTS (doctors unavailable on ${targetDate})
+${JSON.stringify(leaveRequests?.filter((l: any) => l.status === 'approved' || l.status === 'Approved') || [], null, 2)}
+
+## CURRENT MONTH DUTY STATISTICS (for fairness tracking)
+${JSON.stringify(statsContext, null, 2)}
+
+## SCHEDULED CAMPS ON ${targetDate}
+${JSON.stringify(campDetails.filter((c: any) => c.date === targetDate), null, 2)}
+
+## RECENT ASSIGNMENTS (for context on workload patterns)
+${JSON.stringify(existingAssignments?.slice(0, 30) || [], null, 2)}
+
+## TASK
+1. First, assign doctors to any camps scheduled for this date
+2. Then, create a balanced schedule for remaining doctors
+3. Ensure Emergency coverage (24/7 requirement)
+4. Match specialties to appropriate units where possible
+5. Respect all constraints (seniority, capabilities, limits)
+6. Maximize fairness in duty distribution
+
+Create assignments that are FAIR, SAFE, and OPTIMAL for patient care.`;
+
+    console.log("Sending advanced scheduling request to AI...");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -136,7 +242,9 @@ Create a balanced schedule ensuring all critical units are covered and workload 
       });
     }
 
-    console.log("Successfully generated scheduling suggestions");
+    console.log("Successfully generated advanced scheduling suggestions");
+    console.log("Assignments count:", result.assignments?.length);
+    console.log("Camp assignments:", result.campAssignments?.length || 0);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
