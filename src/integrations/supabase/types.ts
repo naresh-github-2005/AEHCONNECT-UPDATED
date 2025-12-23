@@ -65,37 +65,210 @@ export type Database = {
         }
         Relationships: []
       }
+      camp_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          camp_id: string
+          doctor_id: string
+          id: string
+          status: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          camp_id: string
+          doctor_id: string
+          id?: string
+          status?: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          camp_id?: string
+          doctor_id?: string
+          id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "camp_assignments_camp_id_fkey"
+            columns: ["camp_id"]
+            isOneToOne: false
+            referencedRelation: "camps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "camp_assignments_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      camps: {
+        Row: {
+          camp_date: string
+          created_at: string
+          created_by: string | null
+          end_time: string
+          id: string
+          location: string
+          name: string
+          notes: string | null
+          required_doctors: number
+          specialty_required:
+            | Database["public"]["Enums"]["medical_specialty"]
+            | null
+          start_time: string
+        }
+        Insert: {
+          camp_date: string
+          created_at?: string
+          created_by?: string | null
+          end_time?: string
+          id?: string
+          location: string
+          name: string
+          notes?: string | null
+          required_doctors?: number
+          specialty_required?:
+            | Database["public"]["Enums"]["medical_specialty"]
+            | null
+          start_time?: string
+        }
+        Update: {
+          camp_date?: string
+          created_at?: string
+          created_by?: string | null
+          end_time?: string
+          id?: string
+          location?: string
+          name?: string
+          notes?: string | null
+          required_doctors?: number
+          specialty_required?:
+            | Database["public"]["Enums"]["medical_specialty"]
+            | null
+          start_time?: string
+        }
+        Relationships: []
+      }
+      doctor_duty_stats: {
+        Row: {
+          camp_count: number
+          doctor_id: string
+          id: string
+          month: number
+          night_duty_count: number
+          opd_sessions: number
+          ot_sessions: number
+          total_hours: number
+          updated_at: string
+          weekend_duty_count: number
+          year: number
+        }
+        Insert: {
+          camp_count?: number
+          doctor_id: string
+          id?: string
+          month: number
+          night_duty_count?: number
+          opd_sessions?: number
+          ot_sessions?: number
+          total_hours?: number
+          updated_at?: string
+          weekend_duty_count?: number
+          year: number
+        }
+        Update: {
+          camp_count?: number
+          doctor_id?: string
+          id?: string
+          month?: number
+          night_duty_count?: number
+          opd_sessions?: number
+          ot_sessions?: number
+          total_hours?: number
+          updated_at?: string
+          weekend_duty_count?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doctor_duty_stats_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       doctors: {
         Row: {
+          can_do_camp: boolean
+          can_do_night: boolean
+          can_do_opd: boolean
+          can_do_ot: boolean
+          can_do_ward: boolean
           created_at: string | null
           department: string
+          fixed_off_days: string[] | null
+          health_constraints: string | null
           id: string
           is_active: boolean | null
+          max_hours_per_week: number
+          max_night_duties_per_month: number
           name: string
           phone: string
+          seniority: Database["public"]["Enums"]["seniority_level"]
           specialization: string | null
+          specialty: Database["public"]["Enums"]["medical_specialty"]
           updated_at: string | null
           user_id: string | null
         }
         Insert: {
+          can_do_camp?: boolean
+          can_do_night?: boolean
+          can_do_opd?: boolean
+          can_do_ot?: boolean
+          can_do_ward?: boolean
           created_at?: string | null
           department: string
+          fixed_off_days?: string[] | null
+          health_constraints?: string | null
           id?: string
           is_active?: boolean | null
+          max_hours_per_week?: number
+          max_night_duties_per_month?: number
           name: string
           phone: string
+          seniority?: Database["public"]["Enums"]["seniority_level"]
           specialization?: string | null
+          specialty?: Database["public"]["Enums"]["medical_specialty"]
           updated_at?: string | null
           user_id?: string | null
         }
         Update: {
+          can_do_camp?: boolean
+          can_do_night?: boolean
+          can_do_opd?: boolean
+          can_do_ot?: boolean
+          can_do_ward?: boolean
           created_at?: string | null
           department?: string
+          fixed_off_days?: string[] | null
+          health_constraints?: string | null
           id?: string
           is_active?: boolean | null
+          max_hours_per_week?: number
+          max_night_duties_per_month?: number
           name?: string
           phone?: string
+          seniority?: Database["public"]["Enums"]["seniority_level"]
           specialization?: string | null
+          specialty?: Database["public"]["Enums"]["medical_specialty"]
           updated_at?: string | null
           user_id?: string | null
         }
@@ -228,6 +401,21 @@ export type Database = {
       duty_type: "OPD" | "OT" | "Ward" | "Night Duty" | "Camp" | "Emergency"
       leave_status: "pending" | "approved" | "rejected"
       leave_type: "Casual" | "Emergency" | "Medical" | "Annual"
+      medical_specialty:
+        | "general"
+        | "cornea"
+        | "retina"
+        | "glaucoma"
+        | "oculoplasty"
+        | "pediatric"
+        | "neuro"
+        | "cataract"
+      seniority_level:
+        | "intern"
+        | "resident"
+        | "fellow"
+        | "consultant"
+        | "senior_consultant"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -359,6 +547,23 @@ export const Constants = {
       duty_type: ["OPD", "OT", "Ward", "Night Duty", "Camp", "Emergency"],
       leave_status: ["pending", "approved", "rejected"],
       leave_type: ["Casual", "Emergency", "Medical", "Annual"],
+      medical_specialty: [
+        "general",
+        "cornea",
+        "retina",
+        "glaucoma",
+        "oculoplasty",
+        "pediatric",
+        "neuro",
+        "cataract",
+      ],
+      seniority_level: [
+        "intern",
+        "resident",
+        "fellow",
+        "consultant",
+        "senior_consultant",
+      ],
     },
   },
 } as const
