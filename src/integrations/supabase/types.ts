@@ -339,6 +339,8 @@ export type Database = {
           can_do_ward: boolean
           created_at: string | null
           department: string
+          designation: Database["public"]["Enums"]["designation_level"] | null
+          eligible_duties: string[] | null
           fixed_off_days: string[] | null
           health_constraints: string | null
           id: string
@@ -346,10 +348,12 @@ export type Database = {
           max_hours_per_week: number
           max_night_duties_per_month: number
           name: string
+          performance_score: number | null
           phone: string
           seniority: Database["public"]["Enums"]["seniority_level"]
           specialization: string | null
           specialty: Database["public"]["Enums"]["medical_specialty"]
+          unit: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -361,6 +365,8 @@ export type Database = {
           can_do_ward?: boolean
           created_at?: string | null
           department: string
+          designation?: Database["public"]["Enums"]["designation_level"] | null
+          eligible_duties?: string[] | null
           fixed_off_days?: string[] | null
           health_constraints?: string | null
           id?: string
@@ -368,10 +374,12 @@ export type Database = {
           max_hours_per_week?: number
           max_night_duties_per_month?: number
           name: string
+          performance_score?: number | null
           phone: string
           seniority?: Database["public"]["Enums"]["seniority_level"]
           specialization?: string | null
           specialty?: Database["public"]["Enums"]["medical_specialty"]
+          unit?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -383,6 +391,8 @@ export type Database = {
           can_do_ward?: boolean
           created_at?: string | null
           department?: string
+          designation?: Database["public"]["Enums"]["designation_level"] | null
+          eligible_duties?: string[] | null
           fixed_off_days?: string[] | null
           health_constraints?: string | null
           id?: string
@@ -390,10 +400,12 @@ export type Database = {
           max_hours_per_week?: number
           max_night_duties_per_month?: number
           name?: string
+          performance_score?: number | null
           phone?: string
           seniority?: Database["public"]["Enums"]["seniority_level"]
           specialization?: string | null
           specialty?: Database["public"]["Enums"]["medical_specialty"]
+          unit?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -523,7 +535,19 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "doctor"
-      duty_type: "OPD" | "OT" | "Ward" | "Night Duty" | "Camp" | "Emergency"
+      designation_level: "pg" | "fellow" | "mo" | "consultant"
+      duty_type:
+        | "OPD"
+        | "OT"
+        | "Ward"
+        | "Night Duty"
+        | "Camp"
+        | "Emergency"
+        | "Cataract OT"
+        | "Retina OT"
+        | "Glaucoma OT"
+        | "Cornea OT"
+        | "Today Doctor"
       leave_status: "pending" | "approved" | "rejected"
       leave_type: "Casual" | "Emergency" | "Medical" | "Annual"
       medical_specialty:
@@ -669,7 +693,20 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "doctor"],
-      duty_type: ["OPD", "OT", "Ward", "Night Duty", "Camp", "Emergency"],
+      designation_level: ["pg", "fellow", "mo", "consultant"],
+      duty_type: [
+        "OPD",
+        "OT",
+        "Ward",
+        "Night Duty",
+        "Camp",
+        "Emergency",
+        "Cataract OT",
+        "Retina OT",
+        "Glaucoma OT",
+        "Cornea OT",
+        "Today Doctor",
+      ],
       leave_status: ["pending", "approved", "rejected"],
       leave_type: ["Casual", "Emergency", "Medical", "Annual"],
       medical_specialty: [

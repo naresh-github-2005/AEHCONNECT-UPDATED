@@ -1,11 +1,12 @@
-// Mock data for Hospital Duty Management System
+// Mock data for Hospital Duty Management System - Based on real Aravind Eye Hospital patterns
 
-export type DutyType = 'OPD' | 'OT' | 'Night Duty' | 'Ward' | 'Camp' | 'Emergency';
+export type DutyType = 'OPD' | 'OT' | 'Night Duty' | 'Ward' | 'Camp' | 'Emergency' | 'Cataract OT' | 'Retina OT' | 'Glaucoma OT' | 'Cornea OT' | 'Today Doctor';
 export type LeaveType = 'Casual' | 'Emergency' | 'Medical' | 'Annual';
 export type LeaveStatus = 'Pending' | 'Approved' | 'Rejected';
 export type UserRole = 'doctor' | 'admin';
 export type SeniorityLevel = 'intern' | 'resident' | 'fellow' | 'consultant' | 'senior_consultant';
 export type MedicalSpecialty = 'general' | 'cornea' | 'retina' | 'glaucoma' | 'oculoplasty' | 'pediatric' | 'neuro' | 'cataract';
+export type DesignationLevel = 'pg' | 'fellow' | 'mo' | 'consultant';
 
 export interface Doctor {
   id: string;
@@ -15,6 +16,10 @@ export interface Doctor {
   avatar?: string;
   seniority?: SeniorityLevel;
   specialty?: MedicalSpecialty;
+  designation?: DesignationLevel;
+  performance_score?: number;
+  eligible_duties?: string[];
+  unit?: string;
   max_night_duties_per_month?: number;
   max_hours_per_week?: number;
   fixed_off_days?: string[];
@@ -81,33 +86,168 @@ export interface ActivityLog {
   details?: string;
 }
 
-// Mock Doctors
+// Duty Types with priority (from real hospital patterns)
+export const dutyTypes = [
+  { code: 'OPD', label: 'OPD', priority: 1 },
+  { code: 'Cataract OT', label: 'Cataract OT', priority: 3 },
+  { code: 'Retina OT', label: 'Retina OT', priority: 4 },
+  { code: 'Glaucoma OT', label: 'Glaucoma OT', priority: 4 },
+  { code: 'Cornea OT', label: 'Cornea OT', priority: 4 },
+  { code: 'Night Duty', label: 'Night Duty', priority: 2 },
+  { code: 'Ward', label: 'Ward Rounds', priority: 1 },
+  { code: 'Today Doctor', label: 'Today Doctor', priority: 5 },
+  { code: 'Camp', label: 'Camp', priority: 3 },
+  { code: 'Emergency', label: 'Emergency', priority: 2 },
+];
+
+// Mock Doctors - Realistic profiles based on hospital patterns
 export const doctors: Doctor[] = [
-  { id: '1', name: 'Dr. Sarah Johnson', phone: '+1 555-0101', department: 'General Medicine' },
-  { id: '2', name: 'Dr. Michael Chen', phone: '+1 555-0102', department: 'Surgery' },
-  { id: '3', name: 'Dr. Emily Williams', phone: '+1 555-0103', department: 'Pediatrics' },
-  { id: '4', name: 'Dr. James Anderson', phone: '+1 555-0104', department: 'Cardiology' },
-  { id: '5', name: 'Dr. Lisa Martinez', phone: '+1 555-0105', department: 'Orthopedics' },
-  { id: '6', name: 'Dr. Robert Taylor', phone: '+1 555-0106', department: 'Emergency' },
-  { id: '7', name: 'Dr. Amanda Brown', phone: '+1 555-0107', department: 'Neurology' },
-  { id: '8', name: 'Dr. David Wilson', phone: '+1 555-0108', department: 'Oncology' },
+  { 
+    id: '1', 
+    name: 'Dr. Anisha Menon', 
+    phone: '+91 90000-00001', 
+    department: 'Ophthalmology',
+    designation: 'mo',
+    seniority: 'consultant',
+    specialty: 'cataract',
+    performance_score: 88,
+    unit: 'Unit 3',
+    eligible_duties: ['Cataract OT', 'OPD', 'Today Doctor'],
+    can_do_opd: true,
+    can_do_ot: true,
+    can_do_camp: true,
+    can_do_night: false,
+  },
+  { 
+    id: '2', 
+    name: 'Dr. Neethu Krishnan', 
+    phone: '+91 90000-00002', 
+    department: 'Ophthalmology',
+    designation: 'fellow',
+    seniority: 'fellow',
+    specialty: 'glaucoma',
+    performance_score: 82,
+    unit: 'Unit 2',
+    eligible_duties: ['Glaucoma OT', 'Cataract OT', 'Night Duty'],
+    can_do_opd: true,
+    can_do_ot: true,
+    can_do_night: true,
+  },
+  { 
+    id: '3', 
+    name: 'Dr. Akhil Sharma', 
+    phone: '+91 90000-00003', 
+    department: 'Ophthalmology',
+    designation: 'pg',
+    seniority: 'resident',
+    specialty: 'general',
+    performance_score: 64,
+    unit: 'Unit 1',
+    eligible_duties: ['OPD', 'Ward', 'Night Duty'],
+    can_do_opd: true,
+    can_do_ot: false,
+    can_do_night: true,
+  },
+  { 
+    id: '4', 
+    name: 'Dr. Varuna Reddy', 
+    phone: '+91 90000-00004', 
+    department: 'Ophthalmology',
+    designation: 'mo',
+    seniority: 'consultant',
+    specialty: 'retina',
+    performance_score: 91,
+    unit: 'Unit 4',
+    eligible_duties: ['Retina OT', 'Cataract OT', 'Today Doctor'],
+    can_do_opd: true,
+    can_do_ot: true,
+    can_do_camp: true,
+    can_do_night: false,
+  },
+  { 
+    id: '5', 
+    name: 'Dr. Niyathi Patel', 
+    phone: '+91 90000-00005', 
+    department: 'Ophthalmology',
+    designation: 'pg',
+    seniority: 'resident',
+    specialty: 'general',
+    performance_score: 60,
+    unit: 'Unit 2',
+    eligible_duties: ['OPD', 'Night Duty'],
+    can_do_opd: true,
+    can_do_ot: false,
+    can_do_night: true,
+  },
+  { 
+    id: '6', 
+    name: 'Dr. Priya Sundaram', 
+    phone: '+91 90000-00006', 
+    department: 'Ophthalmology',
+    designation: 'consultant',
+    seniority: 'senior_consultant',
+    specialty: 'cornea',
+    performance_score: 95,
+    unit: 'Unit 1',
+    eligible_duties: ['Cornea OT', 'Retina OT', 'Today Doctor', 'OPD'],
+    can_do_opd: true,
+    can_do_ot: true,
+    can_do_camp: true,
+    can_do_night: false,
+  },
+  { 
+    id: '7', 
+    name: 'Dr. Rajesh Kumar', 
+    phone: '+91 90000-00007', 
+    department: 'Ophthalmology',
+    designation: 'fellow',
+    seniority: 'fellow',
+    specialty: 'retina',
+    performance_score: 78,
+    unit: 'Unit 3',
+    eligible_duties: ['Retina OT', 'Cataract OT', 'Night Duty', 'OPD'],
+    can_do_opd: true,
+    can_do_ot: true,
+    can_do_night: true,
+  },
+  { 
+    id: '8', 
+    name: 'Dr. Kavitha Rajan', 
+    phone: '+91 90000-00008', 
+    department: 'Ophthalmology',
+    designation: 'mo',
+    seniority: 'consultant',
+    specialty: 'pediatric',
+    performance_score: 85,
+    unit: 'Unit 4',
+    eligible_duties: ['Cataract OT', 'OPD', 'Today Doctor'],
+    can_do_opd: true,
+    can_do_ot: true,
+    can_do_camp: true,
+    can_do_night: false,
+  },
 ];
 
 // Get today's date in YYYY-MM-DD format
 const getToday = () => new Date().toISOString().split('T')[0];
 
-// Mock Duty Assignments
+// Generate realistic duty assignments following hospital patterns
 export const generateDutyAssignments = (): DutyAssignment[] => {
   const today = getToday();
   return [
-    { id: '1', doctorId: '1', doctor: doctors[0], dutyType: 'OPD', unit: 'OPD Block A', date: today, startTime: '08:00', endTime: '14:00' },
-    { id: '2', doctorId: '2', doctor: doctors[1], dutyType: 'OT', unit: 'Operation Theatre 1', date: today, startTime: '09:00', endTime: '17:00' },
-    { id: '3', doctorId: '3', doctor: doctors[2], dutyType: 'Ward', unit: 'Pediatric Ward', date: today, startTime: '08:00', endTime: '16:00' },
-    { id: '4', doctorId: '4', doctor: doctors[3], dutyType: 'Night Duty', unit: 'ICU', date: today, startTime: '20:00', endTime: '08:00' },
-    { id: '5', doctorId: '5', doctor: doctors[4], dutyType: 'OPD', unit: 'OPD Block B', date: today, startTime: '10:00', endTime: '16:00' },
-    { id: '6', doctorId: '6', doctor: doctors[5], dutyType: 'Ward', unit: 'Emergency Ward', date: today, startTime: '08:00', endTime: '20:00' },
-    { id: '7', doctorId: '7', doctor: doctors[6], dutyType: 'Camp', unit: 'Community Health Camp', date: today, startTime: '09:00', endTime: '15:00' },
-    { id: '8', doctorId: '8', doctor: doctors[7], dutyType: 'OT', unit: 'Operation Theatre 2', date: today, startTime: '07:00', endTime: '15:00' },
+    // Consultants/MOs get specialty OTs and Today Doctor role
+    { id: '1', doctorId: '1', doctor: doctors[0], dutyType: 'Cataract OT', unit: 'OT-2', date: today, startTime: '07:30', endTime: '13:30' },
+    { id: '2', doctorId: '4', doctor: doctors[3], dutyType: 'Retina OT', unit: 'OT-3', date: today, startTime: '08:00', endTime: '14:00' },
+    { id: '3', doctorId: '6', doctor: doctors[5], dutyType: 'Today Doctor', unit: 'Coordination', date: today, startTime: '07:00', endTime: '19:00' },
+    // Fellows get partial OT exposure and some night duty
+    { id: '4', doctorId: '2', doctor: doctors[1], dutyType: 'Glaucoma OT', unit: 'OT-1', date: today, startTime: '10:30', endTime: '14:00' },
+    { id: '5', doctorId: '7', doctor: doctors[6], dutyType: 'Cataract OT', unit: 'OT-4', date: today, startTime: '09:00', endTime: '13:00' },
+    // PGs get OPD, Ward, and Night Duty (no full OT)
+    { id: '6', doctorId: '3', doctor: doctors[2], dutyType: 'OPD', unit: 'OPD-1', date: today, startTime: '09:00', endTime: '16:00' },
+    { id: '7', doctorId: '5', doctor: doctors[4], dutyType: 'OPD', unit: 'OPD-2', date: today, startTime: '08:00', endTime: '15:00' },
+    { id: '8', doctorId: '3', doctor: doctors[2], dutyType: 'Night Duty', unit: 'Emergency', date: today, startTime: '20:00', endTime: '08:00' },
+    // MO on OPD after OT
+    { id: '9', doctorId: '8', doctor: doctors[7], dutyType: 'OPD', unit: 'OPD-3', date: today, startTime: '14:00', endTime: '17:00' },
   ];
 };
 
@@ -137,12 +277,12 @@ export const initialLeaveRequests: LeaveRequest[] = [
 
 // Mock Activity Log
 export const initialActivityLog: ActivityLog[] = [
-  { id: '1', action: 'Roster generated', timestamp: new Date().toISOString(), details: 'Daily roster created for today' },
-  { id: '2', action: 'Leave approved', timestamp: new Date(Date.now() - 3600000).toISOString(), details: 'Dr. Emily Williams - Casual leave' },
-  { id: '3', action: 'Duty swapped', timestamp: new Date(Date.now() - 7200000).toISOString(), details: 'Dr. Chen ↔ Dr. Taylor in OT' },
+  { id: '1', action: 'Roster generated', timestamp: new Date().toISOString(), details: 'AI-generated roster for today based on performance scores' },
+  { id: '2', action: 'Leave approved', timestamp: new Date(Date.now() - 3600000).toISOString(), details: 'Dr. Akhil Sharma - Casual leave' },
+  { id: '3', action: 'Duty swapped', timestamp: new Date(Date.now() - 7200000).toISOString(), details: 'Dr. Neethu ↔ Dr. Rajesh in Glaucoma OT' },
 ];
 
-// Analytics Data
+// Analytics Data - Reflecting realistic patterns
 export interface AnalyticsData {
   dutyLoadBalance: 'Good' | 'Moderate' | 'Needs Review';
   nightDutyDistribution: { [key: string]: number };
@@ -150,18 +290,24 @@ export interface AnalyticsData {
   rosterChangesToday: number;
   totalDoctors: number;
   averageDutiesPerDoctor: number;
+  designationDistribution: { [key: string]: number };
 }
 
 export const getAnalyticsData = (): AnalyticsData => ({
   dutyLoadBalance: 'Good',
   nightDutyDistribution: {
-    'Dr. James Anderson': 5,
-    'Dr. Robert Taylor': 4,
-    'Dr. Michael Chen': 4,
-    'Dr. Sarah Johnson': 3,
+    'PG': 70,
+    'Fellow': 25,
+    'MO': 5,
+  },
+  designationDistribution: {
+    'Consultant': 2,
+    'MO': 3,
+    'Fellow': 2,
+    'PG': 1,
   },
   doctorsOnLeaveToday: 1,
-  rosterChangesToday: 3,
+  rosterChangesToday: 2,
   totalDoctors: doctors.length,
   averageDutiesPerDoctor: 4.2,
 });
@@ -177,7 +323,7 @@ export interface User {
 export const mockUsers: { [key: string]: User } = {
   doctor: {
     id: 'u1',
-    name: 'Dr. Sarah Johnson',
+    name: 'Dr. Anisha Menon',
     role: 'doctor',
     doctorId: '1',
   },
@@ -185,5 +331,34 @@ export const mockUsers: { [key: string]: User } = {
     id: 'u2',
     name: 'Admin User',
     role: 'admin',
+  },
+};
+
+// Scheduling Rules (implicit rules for AI to follow)
+export const schedulingRules = {
+  eligibility: {
+    'Specialty OT': ['mo', 'consultant', 'fellow'],
+    'Cataract OT': ['fellow', 'mo', 'consultant'],
+    'Retina OT': ['mo', 'consultant'],
+    'Glaucoma OT': ['fellow', 'mo', 'consultant'],
+    'Cornea OT': ['mo', 'consultant'],
+    'Night Duty': ['pg', 'fellow'],
+    'Today Doctor': ['mo', 'consultant'],
+    'OPD': ['pg', 'fellow', 'mo', 'consultant'],
+    'Ward': ['pg', 'fellow', 'mo', 'consultant'],
+  },
+  fairnessConstraints: {
+    maxNightDutiesPerWeek: 2,
+    maxOTDaysPerWeekPG: 2,
+    avoidConsecutiveSameDuty: true,
+  },
+  trainingQuotas: {
+    pgMinOTHoursPerWeek: 8,
+    pgNeverFullDayOTAlone: true,
+  },
+  performanceWeighting: {
+    minScoreForSpecialtyOT: 75,
+    minScoreForCataractOT: 70,
+    higherScorePreferredForOT: true,
   },
 };

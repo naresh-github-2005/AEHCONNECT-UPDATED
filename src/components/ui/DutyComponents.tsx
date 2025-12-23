@@ -15,6 +15,11 @@ const dutyColors: Record<DutyType, string> = {
   'Ward': 'duty-ward',
   'Camp': 'duty-camp',
   'Emergency': 'bg-red-500/20 text-red-700 border border-red-200',
+  'Cataract OT': 'bg-blue-500/20 text-blue-700 border border-blue-200',
+  'Retina OT': 'bg-purple-500/20 text-purple-700 border border-purple-200',
+  'Glaucoma OT': 'bg-teal-500/20 text-teal-700 border border-teal-200',
+  'Cornea OT': 'bg-indigo-500/20 text-indigo-700 border border-indigo-200',
+  'Today Doctor': 'bg-amber-500/20 text-amber-700 border border-amber-200',
 };
 
 export const DutyBadge: React.FC<DutyBadgeProps> = ({ type, className }) => {
