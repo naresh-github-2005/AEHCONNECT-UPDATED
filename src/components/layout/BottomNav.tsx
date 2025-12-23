@@ -29,14 +29,14 @@ const navItems: NavItem[] = [
 export const BottomNav: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
 
   const filteredItems = navItems.filter(
     (item) => !item.adminOnly || user?.role === 'admin'
   );
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut();
     navigate('/');
   };
 
