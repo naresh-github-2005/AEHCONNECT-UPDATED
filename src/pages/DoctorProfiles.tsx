@@ -124,8 +124,10 @@ const DoctorProfiles: React.FC = () => {
     const { error } = await supabase
       .from('doctors')
       .update({
-        seniority: selectedDoctor.seniority,
-        specialty: selectedDoctor.specialty,
+        designation: selectedDoctor.designation || 'pg',
+        seniority: selectedDoctor.seniority || 'resident',
+        specialty: selectedDoctor.specialty || 'general',
+        performance_score: selectedDoctor.performance_score || 70,
         max_night_duties_per_month: selectedDoctor.max_night_duties_per_month,
         max_hours_per_week: selectedDoctor.max_hours_per_week,
         fixed_off_days: selectedDoctor.fixed_off_days,
@@ -185,11 +187,11 @@ const DoctorProfiles: React.FC = () => {
       {/* Stats by Designation */}
       <div className="grid grid-cols-4 gap-2">
         {Object.entries(designationLabels).map(([key, label]) => {
-          const count = doctors.filter(d => d.designation === key).length;
-          const avgScore = Math.round(
-            doctors.filter(d => d.designation === key).reduce((sum, d) => sum + (d.performance_score || 0), 0) / 
-            Math.max(count, 1)
-          );
+          const count = doctors.filter(d => (d.designation || 'pg') === key).length;
+          const designationDoctors = doctors.filter(d => (d.designation || 'pg') === key);
+          const avgScore = designationDoctors.length > 0 
+            ? Math.round(designationDoctors.reduce((sum, d) => sum + (d.performance_score || 70), 0) / designationDoctors.length)
+            : 0;
           return (
             <div key={key} className={`p-3 rounded-lg text-center border ${designationColors[key as DesignationLevel]}`}>
               <p className="text-xl font-bold">{count}</p>
@@ -225,14 +227,14 @@ const DoctorProfiles: React.FC = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <Badge variant="outline" className={`text-[10px] ${designationColors[doctor.designation]}`}>
-                        {designationLabels[doctor.designation]}
+                      <Badge variant="outline" className={`text-[10px] ${designationColors[doctor.designation || 'pg']}`}>
+                        {designationLabels[doctor.designation || 'pg']}
                       </Badge>
                       <span className="text-tiny text-muted-foreground capitalize">
-                        {specialtyLabels[doctor.specialty]}
+                        {specialtyLabels[doctor.specialty || 'general']}
                       </span>
                       <span className="text-tiny font-medium text-primary">
-                        {doctor.performance_score}%
+                        {doctor.performance_score || 70}%
                       </span>
                     </div>
                   </div>
@@ -285,9 +287,44 @@ const DoctorProfiles: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <Label>Designation</Label>
+                  <Select
+                    value={selectedDoctor.designation || 'pg'}
+                    onValueChange={(value) => setSelectedDoctor({ ...selectedDoctor, designation: value as DesignationLevel })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(designationLabels).map(([key, label]) => (
+                        <SelectItem key={key} value={key}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Specialty</Label>
+                  <Select
+                    value={selectedDoctor.specialty || 'general'}
+                    onValueChange={(value) => setSelectedDoctor({ ...selectedDoctor, specialty: value as MedicalSpecialty })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(specialtyLabels).map(([key, label]) => (
+                        <SelectItem key={key} value={key}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <Label>Seniority Level</Label>
                   <Select
-                    value={selectedDoctor.seniority}
+                    value={selectedDoctor.seniority || 'resident'}
                     onValueChange={(value) => setSelectedDoctor({ ...selectedDoctor, seniority: value as SeniorityLevel })}
                   >
                     <SelectTrigger>
@@ -301,20 +338,14 @@ const DoctorProfiles: React.FC = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label>Specialty</Label>
-                  <Select
-                    value={selectedDoctor.specialty}
-                    onValueChange={(value) => setSelectedDoctor({ ...selectedDoctor, specialty: value as MedicalSpecialty })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(specialtyLabels).map(([key, label]) => (
-                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Performance Score</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={selectedDoctor.performance_score || 70}
+                    onChange={(e) => setSelectedDoctor({ ...selectedDoctor, performance_score: parseInt(e.target.value) || 70 })}
+                  />
                 </div>
               </div>
 
