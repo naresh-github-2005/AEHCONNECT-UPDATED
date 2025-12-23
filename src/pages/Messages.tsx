@@ -141,6 +141,13 @@ const Messages: React.FC = () => {
     };
   };
 
+  // Check if ID looks like a valid UUID
+  const isValidUUID = (id: string | undefined) => {
+    if (!id) return false;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(id);
+  };
+
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedChannel || isSending) return;
 
@@ -150,7 +157,7 @@ const Messages: React.FC = () => {
         .from('chat_messages')
         .insert({
           channel_id: selectedChannel.id,
-          sender_id: user?.id,
+          sender_id: isValidUUID(user?.id) ? user?.id : null,
           sender_name: user?.name || 'Unknown',
           content: newMessage.trim(),
           message_type: 'text'
