@@ -3,8 +3,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DutyBadge, PhoneButton, DoctorAvatar } from '@/components/ui/DutyComponents';
-import { Clock, MapPin, Users, RefreshCw, Moon } from 'lucide-react';
+import { Clock, MapPin, Users, RefreshCw, Moon, Activity, CalendarCheck, Stethoscope, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
+
+// Mock doctor stats (would come from API in real app)
+const doctorStats = {
+  patientsHandledToday: 24,
+  patientsHandledThisMonth: 312,
+  dutiesCompletedThisMonth: 18,
+  nightDutiesThisMonth: 4,
+  opdSessions: 12,
+  surgeries: 6,
+  avgPatientsPerDay: 26,
+  attendanceRate: 98,
+};
 
 const DoctorDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -88,8 +100,94 @@ const DoctorDashboard: React.FC = () => {
         </Card>
       )}
 
-      {/* Who Else is On Duty */}
+      {/* Personal Analytics */}
       <div className="animate-slide-up stagger-2">
+        <div className="flex items-center gap-2 mb-3">
+          <Activity className="w-5 h-5 text-muted-foreground" />
+          <h3 className="text-subtitle text-foreground">Your Stats</h3>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="shadow-soft">
+            <CardContent className="py-4 px-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Stethoscope className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-hero text-foreground">{doctorStats.patientsHandledToday}</p>
+                  <p className="text-tiny text-muted-foreground">Patients Today</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="shadow-soft">
+            <CardContent className="py-4 px-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center">
+                  <CalendarCheck className="w-5 h-5 text-success" />
+                </div>
+                <div>
+                  <p className="text-hero text-foreground">{doctorStats.dutiesCompletedThisMonth}</p>
+                  <p className="text-tiny text-muted-foreground">Duties This Month</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="shadow-soft">
+            <CardContent className="py-4 px-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-accent" />
+                </div>
+                <div>
+                  <p className="text-hero text-foreground">{doctorStats.patientsHandledThisMonth}</p>
+                  <p className="text-tiny text-muted-foreground">Patients This Month</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="shadow-soft">
+            <CardContent className="py-4 px-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center">
+                  <Moon className="w-5 h-5 text-warning" />
+                </div>
+                <div>
+                  <p className="text-hero text-foreground">{doctorStats.nightDutiesThisMonth}</p>
+                  <p className="text-tiny text-muted-foreground">Night Duties</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* Performance Summary */}
+        <Card className="mt-3 shadow-soft">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="space-y-1">
+                  <p className="text-body font-medium text-foreground">Monthly Performance</p>
+                  <p className="text-tiny text-muted-foreground">
+                    {doctorStats.opdSessions} OPD Sessions • {doctorStats.surgeries} Surgeries
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-title text-success font-semibold">{doctorStats.attendanceRate}%</p>
+                <p className="text-tiny text-muted-foreground">Attendance</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Who Else is On Duty */}
+      <div className="animate-slide-up stagger-3">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-muted-foreground" />
@@ -132,7 +230,7 @@ const DoctorDashboard: React.FC = () => {
       </div>
 
       {/* Last Updated */}
-      <div className="flex items-center justify-center gap-2 text-tiny text-muted-foreground animate-fade-in stagger-3">
+      <div className="flex items-center justify-center gap-2 text-tiny text-muted-foreground animate-fade-in stagger-4">
         <button 
           onClick={refreshData}
           className="flex items-center gap-1.5 hover:text-primary transition-colors"
