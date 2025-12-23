@@ -502,6 +502,74 @@ export type Database = {
           },
         ]
       }
+      swap_requests: {
+        Row: {
+          created_at: string
+          id: string
+          reason: string | null
+          requester_assignment_id: string
+          requester_doctor_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          target_assignment_id: string
+          target_doctor_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reason?: string | null
+          requester_assignment_id: string
+          requester_doctor_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          target_assignment_id: string
+          target_doctor_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reason?: string | null
+          requester_assignment_id?: string
+          requester_doctor_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          target_assignment_id?: string
+          target_doctor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "swap_requests_requester_assignment_id_fkey"
+            columns: ["requester_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "duty_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swap_requests_requester_doctor_id_fkey"
+            columns: ["requester_doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swap_requests_target_assignment_id_fkey"
+            columns: ["target_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "duty_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "swap_requests_target_doctor_id_fkey"
+            columns: ["target_doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
