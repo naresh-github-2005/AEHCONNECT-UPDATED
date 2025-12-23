@@ -1,117 +1,27 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { UserRole } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Stethoscope, Shield, ArrowRight, Mail, Lock, User } from 'lucide-react';
+import { Stethoscope, Shield, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
-import { z } from 'zod';
-
-const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters')
-});
-
-const signupSchema = loginSchema.extend({
-  name: z.string().min(2, 'Name must be at least 2 characters')
-});
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { signIn, signUp, isAuthenticated } = useAuth();
-  const { toast } = useToast();
-  
-  const [selectedRole, setSelectedRole] = useState<UserRole>('doctor');
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  
-  // Signup form state
-  const [signupName, setSignupName] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
+  const { login } = useAuth();
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Redirect if already authenticated
-  React.useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard');
-    }
-  }, [isAuthenticated, navigate]);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async () => {
+    if (!selectedRole) return;
     
-    try {
-      loginSchema.parse({ email: loginEmail, password: loginPassword });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        toast({
-          title: "Validation Error",
-          description: error.errors[0].message,
-          variant: "destructive"
-        });
-        return;
-      }
-    }
+    setIsLoggingIn(true);
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 500));
     
-    setIsLoading(true);
-    const { error } = await signIn(loginEmail, loginPassword);
-    setIsLoading(false);
-    
-    if (error) {
-      toast({
-        title: "Login Failed",
-        description: error.message === 'Invalid login credentials' 
-          ? 'Invalid email or password. Please try again.' 
-          : error.message,
-        variant: "destructive"
-      });
-    } else {
-      navigate('/dashboard');
-    }
-  };
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      signupSchema.parse({ email: signupEmail, password: signupPassword, name: signupName });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        toast({
-          title: "Validation Error",
-          description: error.errors[0].message,
-          variant: "destructive"
-        });
-        return;
-      }
-    }
-    
-    setIsLoading(true);
-    const { error } = await signUp(signupEmail, signupPassword, signupName, selectedRole);
-    setIsLoading(false);
-    
-    if (error) {
-      toast({
-        title: "Signup Failed",
-        description: error.message.includes('already registered') 
-          ? 'This email is already registered. Please login instead.'
-          : error.message,
-        variant: "destructive"
-      });
-    } else {
-      toast({
-        title: "Account Created",
-        description: "You can now login with your credentials."
-      });
-      navigate('/dashboard');
-    }
+    login(selectedRole);
+    navigate('/dashboard');
   };
 
   return (
@@ -129,184 +39,104 @@ const Login: React.FC = () => {
         </p>
       </div>
 
-      {/* Auth Card */}
+      {/* Login Card */}
       <div className="flex-1 -mt-6 px-4 pb-8">
         <Card className="max-w-md mx-auto shadow-elevated animate-slide-up">
-          <Tabs defaultValue="login" className="w-full">
-            <CardHeader className="text-center pb-2">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
-            </CardHeader>
-            
-            <CardContent>
-              {/* Login Tab */}
-              <TabsContent value="login" className="space-y-4 mt-0">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="login-email"
-                        type="email"
-                        placeholder="doctor@hospital.com"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
+          <CardHeader className="text-center pb-2">
+            <CardTitle className="text-title">Welcome Back</CardTitle>
+            <CardDescription>Select your role to continue</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Role Selection */}
+            <div className="grid gap-3">
+              <button
+                onClick={() => setSelectedRole('doctor')}
+                className={cn(
+                  'flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-200',
+                  selectedRole === 'doctor'
+                    ? 'border-primary bg-primary/5 shadow-soft'
+                    : 'border-border hover:border-primary/50'
+                )}
+              >
+                <div className={cn(
+                  'w-12 h-12 rounded-xl flex items-center justify-center transition-colors',
+                  selectedRole === 'doctor' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                )}>
+                  <Stethoscope className="w-6 h-6" />
+                </div>
+                <div className="text-left flex-1">
+                  <p className="font-semibold text-foreground">Doctor</p>
+                  <p className="text-caption text-muted-foreground">View duties & apply for leave</p>
+                </div>
+                <div className={cn(
+                  'w-5 h-5 rounded-full border-2 transition-all',
+                  selectedRole === 'doctor' 
+                    ? 'border-primary bg-primary' 
+                    : 'border-muted-foreground'
+                )}>
+                  {selectedRole === 'doctor' && (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <div className="w-2 h-2 bg-primary-foreground rounded-full" />
                     </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="login-password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
+                  )}
+                </div>
+              </button>
+
+              <button
+                onClick={() => setSelectedRole('admin')}
+                className={cn(
+                  'flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-200',
+                  selectedRole === 'admin'
+                    ? 'border-primary bg-primary/5 shadow-soft'
+                    : 'border-border hover:border-primary/50'
+                )}
+              >
+                <div className={cn(
+                  'w-12 h-12 rounded-xl flex items-center justify-center transition-colors',
+                  selectedRole === 'admin' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                )}>
+                  <Shield className="w-6 h-6" />
+                </div>
+                <div className="text-left flex-1">
+                  <p className="font-semibold text-foreground">Administrator</p>
+                  <p className="text-caption text-muted-foreground">Manage rosters & approvals</p>
+                </div>
+                <div className={cn(
+                  'w-5 h-5 rounded-full border-2 transition-all',
+                  selectedRole === 'admin' 
+                    ? 'border-primary bg-primary' 
+                    : 'border-muted-foreground'
+                )}>
+                  {selectedRole === 'admin' && (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <div className="w-2 h-2 bg-primary-foreground rounded-full" />
                     </div>
-                  </div>
+                  )}
+                </div>
+              </button>
+            </div>
 
-                  <Button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full h-12 text-body font-semibold"
-                    size="lg"
-                  >
-                    {isLoading ? (
-                      <span className="animate-pulse-subtle">Signing in...</span>
-                    ) : (
-                      <>
-                        Sign In
-                        <ArrowRight className="w-5 h-5 ml-2" />
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
+            {/* Login Button */}
+            <Button
+              onClick={handleLogin}
+              disabled={!selectedRole || isLoggingIn}
+              className="w-full h-12 text-body font-semibold mt-6"
+              size="lg"
+            >
+              {isLoggingIn ? (
+                <span className="animate-pulse-subtle">Signing in...</span>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </>
+              )}
+            </Button>
 
-              {/* Signup Tab */}
-              <TabsContent value="signup" className="space-y-4 mt-0">
-                <form onSubmit={handleSignup} className="space-y-4">
-                  {/* Role Selection */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRole('doctor')}
-                      className={cn(
-                        'flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all duration-200',
-                        selectedRole === 'doctor'
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-primary/50'
-                      )}
-                    >
-                      <div className={cn(
-                        'w-10 h-10 rounded-lg flex items-center justify-center transition-colors',
-                        selectedRole === 'doctor' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                      )}>
-                        <Stethoscope className="w-5 h-5" />
-                      </div>
-                      <span className="text-sm font-medium">Doctor</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRole('admin')}
-                      className={cn(
-                        'flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all duration-200',
-                        selectedRole === 'admin'
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-primary/50'
-                      )}
-                    >
-                      <div className={cn(
-                        'w-10 h-10 rounded-lg flex items-center justify-center transition-colors',
-                        selectedRole === 'admin' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                      )}>
-                        <Shield className="w-5 h-5" />
-                      </div>
-                      <span className="text-sm font-medium">Admin</span>
-                    </button>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-name">Full Name</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="signup-name"
-                        type="text"
-                        placeholder="Dr. John Smith"
-                        value={signupName}
-                        onChange={(e) => setSignupName(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="signup-email"
-                        type="email"
-                        placeholder="doctor@hospital.com"
-                        value={signupEmail}
-                        onChange={(e) => setSignupEmail(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="signup-password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={signupPassword}
-                        onChange={(e) => setSignupPassword(e.target.value)}
-                        className="pl-10"
-                        required
-                        minLength={6}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full h-12 text-body font-semibold"
-                    size="lg"
-                  >
-                    {isLoading ? (
-                      <span className="animate-pulse-subtle">Creating account...</span>
-                    ) : (
-                      <>
-                        Create Account
-                        <ArrowRight className="w-5 h-5 ml-2" />
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-            </CardContent>
-          </Tabs>
+            <p className="text-center text-tiny text-muted-foreground mt-4">
+              Demo mode • No credentials required
+            </p>
+          </CardContent>
         </Card>
       </div>
 
