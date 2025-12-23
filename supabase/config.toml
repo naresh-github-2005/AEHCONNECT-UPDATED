@@ -2,3 +2,6 @@ project_id = "ljwkylnzurldtsyrsvxe"
 
 [functions.ai-scheduling-assistant]
 verify_jwt = false
+
+[functions.seed-demo-users]
+verify_jwt = false
