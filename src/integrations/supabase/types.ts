@@ -155,6 +155,131 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_members: {
+        Row: {
+          channel_id: string
+          doctor_id: string | null
+          id: string
+          joined_at: string
+          last_read_at: string | null
+          role: string | null
+          user_id: string | null
+        }
+        Insert: {
+          channel_id: string
+          doctor_id?: string | null
+          id?: string
+          joined_at?: string
+          last_read_at?: string | null
+          role?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          channel_id?: string
+          doctor_id?: string | null
+          id?: string
+          joined_at?: string
+          last_read_at?: string | null
+          role?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_members_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "chat_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_members_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_channels: {
+        Row: {
+          channel_type: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          duty_date: string | null
+          duty_type: Database["public"]["Enums"]["duty_type"] | null
+          id: string
+          is_auto_generated: boolean | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          channel_type?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duty_date?: string | null
+          duty_type?: Database["public"]["Enums"]["duty_type"] | null
+          id?: string
+          is_auto_generated?: boolean | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          channel_type?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duty_date?: string | null
+          duty_type?: Database["public"]["Enums"]["duty_type"] | null
+          id?: string
+          is_auto_generated?: boolean | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          channel_id: string
+          content: string
+          created_at: string
+          id: string
+          is_pinned: boolean | null
+          message_type: string | null
+          sender_id: string | null
+          sender_name: string
+        }
+        Insert: {
+          channel_id: string
+          content: string
+          created_at?: string
+          id?: string
+          is_pinned?: boolean | null
+          message_type?: string | null
+          sender_id?: string | null
+          sender_name: string
+        }
+        Update: {
+          channel_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_pinned?: boolean | null
+          message_type?: string | null
+          sender_id?: string | null
+          sender_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "chat_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       doctor_duty_stats: {
         Row: {
           camp_count: number

@@ -15,6 +15,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Analytics from "./pages/Analytics";
 import CampManagement from "./pages/CampManagement";
 import DoctorProfiles from "./pages/DoctorProfiles";
+import Messages from "./pages/Messages";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -130,6 +131,17 @@ const AppRoutes: React.FC = () => {
           <ProtectedRoute adminOnly>
             <AppLayout>
               <DoctorProfiles />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/messages"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <Messages />
             </AppLayout>
           </ProtectedRoute>
         }
