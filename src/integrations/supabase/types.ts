@@ -14,16 +14,220 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activity_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          details: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          details?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          details?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      ai_scheduling_suggestions: {
+        Row: {
+          applied: boolean | null
+          created_at: string | null
+          id: string
+          reasoning: string | null
+          suggestion_date: string
+          suggestions: Json
+        }
+        Insert: {
+          applied?: boolean | null
+          created_at?: string | null
+          id?: string
+          reasoning?: string | null
+          suggestion_date: string
+          suggestions: Json
+        }
+        Update: {
+          applied?: boolean | null
+          created_at?: string | null
+          id?: string
+          reasoning?: string | null
+          suggestion_date?: string
+          suggestions?: Json
+        }
+        Relationships: []
+      }
+      doctors: {
+        Row: {
+          created_at: string | null
+          department: string
+          id: string
+          is_active: boolean | null
+          name: string
+          phone: string
+          specialization: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          department: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          phone: string
+          specialization?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          department?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          phone?: string
+          specialization?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      duty_assignments: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          doctor_id: string
+          duty_date: string
+          duty_type: Database["public"]["Enums"]["duty_type"]
+          end_time: string
+          id: string
+          start_time: string
+          unit: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          doctor_id: string
+          duty_date: string
+          duty_type: Database["public"]["Enums"]["duty_type"]
+          end_time: string
+          id?: string
+          start_time: string
+          unit: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          doctor_id?: string
+          duty_date?: string
+          duty_type?: Database["public"]["Enums"]["duty_type"]
+          end_time?: string
+          id?: string
+          start_time?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "duty_assignments_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leave_requests: {
+        Row: {
+          created_at: string | null
+          doctor_id: string
+          end_date: string
+          id: string
+          leave_type: Database["public"]["Enums"]["leave_type"]
+          reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          start_date: string
+          status: Database["public"]["Enums"]["leave_status"] | null
+        }
+        Insert: {
+          created_at?: string | null
+          doctor_id: string
+          end_date: string
+          id?: string
+          leave_type: Database["public"]["Enums"]["leave_type"]
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          start_date: string
+          status?: Database["public"]["Enums"]["leave_status"] | null
+        }
+        Update: {
+          created_at?: string | null
+          doctor_id?: string
+          end_date?: string
+          id?: string
+          leave_type?: Database["public"]["Enums"]["leave_type"]
+          reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          start_date?: string
+          status?: Database["public"]["Enums"]["leave_status"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "doctor"
+      duty_type: "OPD" | "OT" | "Ward" | "Night Duty" | "Camp" | "Emergency"
+      leave_status: "pending" | "approved" | "rejected"
+      leave_type: "Casual" | "Emergency" | "Medical" | "Annual"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +354,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "doctor"],
+      duty_type: ["OPD", "OT", "Ward", "Night Duty", "Camp", "Emergency"],
+      leave_status: ["pending", "approved", "rejected"],
+      leave_type: ["Casual", "Emergency", "Medical", "Annual"],
+    },
   },
 } as const
