@@ -5,13 +5,38 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useRealtimeSwapRequests, updateSwapRequestStatus, SwapRequestWithDetails } from '@/hooks/useRealtimeData';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeftRight, Check, X, Clock, Loader2 } from 'lucide-react';
+import { ArrowLeftRight, Check, X, Clock, Loader2, Shield } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
+import { canManageLeave } from '@/lib/dutyRules';
+import type { Database } from '@/integrations/supabase/types';
+
+type DesignationLevel = Database['public']['Enums']['designation_level'];
 
 export const SwapRequestsList: React.FC = () => {
   const { user } = useAuth();
   const { swapRequests, isLoading } = useRealtimeSwapRequests();
   const [processingId, setProcessingId] = React.useState<string | null>(null);
+  const [doctorDesignation, setDoctorDesignation] = React.useState<DesignationLevel | null>(null);
+
+  // Fetch doctor designation for HoD check
+  React.useEffect(() => {
+    const fetchDesignation = async () => {
+      if (!user?.doctorId) return;
+      const { data } = await supabase
+        .from('doctors')
+        .select('designation')
+        .eq('id', user.doctorId)
+        .single();
+      if (data) {
+        setDoctorDesignation(data.designation);
+      }
+    };
+    fetchDesignation();
+  }, [user?.doctorId]);
+
+  // Check if user can manage (Admin or HoD/Consultant)
+  const isAdminOrHoD = canManageLeave(user?.role || 'doctor', doctorDesignation);
 
   const pendingRequests = swapRequests.filter(r => r.status === 'pending');
   const myPendingRequests = pendingRequests.filter(
@@ -41,8 +66,8 @@ export const SwapRequestsList: React.FC = () => {
     );
   }
 
-  // Show all pending for admins, or just relevant ones for doctors
-  const displayRequests = user?.role === 'admin' ? pendingRequests : myPendingRequests;
+  // Show all pending for admins/HoD, or just relevant ones for doctors
+  const displayRequests = isAdminOrHoD ? pendingRequests : myPendingRequests;
 
   if (displayRequests.length === 0) {
     return null;
@@ -63,7 +88,7 @@ export const SwapRequestsList: React.FC = () => {
             key={request.id}
             request={request}
             currentDoctorId={user?.doctorId}
-            isAdmin={user?.role === 'admin'}
+            isAdminOrHoD={isAdminOrHoD}
             isProcessing={processingId === request.id}
             onApprove={() => handleAction(request.id, 'approved')}
             onReject={() => handleAction(request.id, 'rejected')}
@@ -77,7 +102,7 @@ export const SwapRequestsList: React.FC = () => {
 interface SwapRequestCardProps {
   request: SwapRequestWithDetails;
   currentDoctorId?: string;
-  isAdmin?: boolean;
+  isAdminOrHoD?: boolean;
   isProcessing: boolean;
   onApprove: () => void;
   onReject: () => void;
@@ -86,14 +111,14 @@ interface SwapRequestCardProps {
 const SwapRequestCard: React.FC<SwapRequestCardProps> = ({
   request,
   currentDoctorId,
-  isAdmin,
+  isAdminOrHoD,
   isProcessing,
   onApprove,
   onReject,
 }) => {
   const isTargetDoctor = request.target_doctor_id === currentDoctorId;
   const isRequester = request.requester_doctor_id === currentDoctorId;
-  const canRespond = isTargetDoctor || isAdmin;
+  const canRespond = isTargetDoctor || isAdminOrHoD;
 
   return (
     <div className="p-3 rounded-lg bg-card border">

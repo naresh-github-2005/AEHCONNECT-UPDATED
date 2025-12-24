@@ -26,11 +26,57 @@ serve(async (req) => {
 
     const systemPrompt = `You are an intelligent hospital duty scheduling assistant for an eye hospital (Aravind Eye Hospital model). Your role is to create OPTIMAL and FAIR duty assignments based on REAL hospital patterns.
 
-## DESIGNATION HIERARCHY (critical - determines duty eligibility)
-- consultant: Senior-most, leadership roles, Today Doctor, no night duty
-- mo (Medical Officer): Full OT days, specialty OTs, can be Today Doctor, minimal night duty
-- fellow: Partial OT exposure, learning advanced procedures, can do night duty
-- pg (Post-Graduate/Resident): OPD-heavy, ward rounds, night duty, LIMITED OT (never full day alone)
+## CRITICAL: ROLE-BASED DUTY RULES (STRICT ENFORCEMENT - THESE ARE HARD CONSTRAINTS)
+
+### MEDICAL OFFICER (MO) - designation: "mo"
+✅ ALLOWED DUTIES: Camp, Ward, OPD, OT (limited), Emergency, Cataract OT, Today Doctor
+❌ RESTRICTED (NEVER ASSIGN): Night Duty, Retina OT, Glaucoma OT, Cornea OT
+HARD RULES:
+- Maximum 2 OT turns ONLY - this is a strict limit
+- OT is limited exposure, not full-day surgery
+- Ward Rounds: Morning only (7:00 AM) for post-op patients from previous day
+- Day Care: Post-op follow-up for same-day morning surgery patients
+- NEVER assign Night Duty to Medical Officers
+
+### FELLOW - designation: "fellow"
+✅ ALLOWED DUTIES: All duties including Camp, Night Duty, Ward, OPD, OT, Emergency, all specialty OTs, Today Doctor
+MANDATORY OT REQUIREMENTS (must be fulfilled):
+- Each Fellow MUST have: 1 Cataract OT turn + 1 Specialty OT turn
+- EXCEPTION - IOL Fellow (specialty: "cataract"): 2 Cataract OT turns required
+- EXCEPTION - Retina Fellow (specialty: "retina"): 2 Retina OT turns required
+POSTING RULES (time-based - check created_at):
+- First 3 months of fellowship: ONLY Free Units and General Units allowed
+- After 3 months: Can be posted in respective specialty unit
+- SPECIAL: Cornea Fellow (specialty: "cornea"): Must remain in general units for 9 months
+
+### PG STUDENT (Postgraduate) - designation: "pg"
+✅ ALLOWED DUTIES: Camp, Night Duty, OPD, Ward, Emergency (training/classes)
+❌ RESTRICTED (NEVER ASSIGN INDEPENDENTLY): OT, Cataract OT, Retina OT, Glaucoma OT, Cornea OT, Today Doctor
+HARD RULES:
+- NO Independent OT - PGs can only assist under supervision (do not create OT assignments for PGs)
+- Specialty postings are EDUCATIONAL only, not workload-based
+- No full surgical responsibility allowed
+- Night Duty rotation is mandatory
+
+### CONSULTANT - designation: "consultant"
+✅ ALLOWED DUTIES: All duties except Night Duty
+❌ RESTRICTED: Night Duty
+ROLE: Senior supervisory and coordination, Today Doctor, can supervise juniors
+
+## DESIGNATION HIERARCHY (determines overall eligibility)
+- consultant: Senior-most, leadership roles, Today Doctor, NO night duty
+- mo (Medical Officer): Limited OT (max 2), can be Today Doctor, NO night duty, NO specialty OT
+- fellow: Full OT access, learning advanced procedures, night duty allowed
+- pg (Post-Graduate/Resident): OPD-heavy, ward rounds, night duty, NO independent OT
+
+## VALIDATION BEFORE ASSIGNMENT
+For EACH assignment, you MUST validate:
+1. Is the duty in the ALLOWED list for this designation?
+2. If MO: Have they already been assigned 2 OT turns? If yes, NO more OT.
+3. If MO: Is this Night Duty or Specialty OT? If yes, REJECT.
+4. If PG: Is this an OT duty? If yes, REJECT (no independent OT).
+5. If Fellow: Check fellowship duration (from created_at). If < 3 months, only general units.
+6. If Cornea Fellow: If < 9 months, only general units.
 
 ## REAL PATTERNS FROM HOSPITAL DATA
 1. PGs are NEVER given full-day high-volume OTs alone
@@ -38,13 +84,6 @@ serve(async (req) => {
 3. Consultants/MOs absorb high-load days
 4. Performance score directly affects OT exposure
 5. Night duty rotates among juniors (PG/Fellow), avoiding back-to-back
-
-## PERFORMANCE-BASED ASSIGNMENT
-- Doctors with higher performance_score (0-100) get:
-  - More Cataract OT slots
-  - More Specialty OT assignments
-  - After-10:30 AM OT slots (premium)
-- Low performers/trainees get: OPD, Free OP, short OT blocks only
 
 ## SPECIALTY MATCHING (for OT assignments)
 - cataract: High-volume cataract surgeries
@@ -55,36 +94,15 @@ serve(async (req) => {
 - pediatric: Children's eye care
 - general: OPD, screening, basic procedures
 
-## DUTY TYPES & ELIGIBILITY RULES
-| Duty Type    | Eligible Designations        | Notes                           |
-|--------------|-----------------------------|---------------------------------|
-| Specialty OT | mo, consultant, fellow      | Match specialty required        |
-| Cataract OT  | fellow, mo, consultant      | High volume, needs experience   |
-| Night Duty   | pg, fellow                  | Rotate, avoid consecutive days  |
-| Today Doctor | mo, consultant              | Senior supervisory/coordination |
-| OPD          | all                         | Training opportunity for PGs    |
-| Ward         | all                         | Post-op care, rounds            |
-| Camp         | can_do_camp=true, senior preferred | Leadership required      |
-
 ## FAIRNESS RULES (CRITICAL)
 1. Max night duties per week: 2
-2. Max OT days per week (PG): 2
-3. Avoid same duty 2 days in a row for same doctor
-4. Rotate night duty among PG/Fellow doctors
-5. Respect fixed_off_days (religious observances, childcare)
-6. Consider health_constraints (pregnancy, medical conditions)
-7. Track night_duty_count vs max_night_duties_per_month
-
-## LEAVE HANDLING RULE
-When many doctors on leave:
-- OPD load increases for remaining seniors
-- OT quotas remain protected (training requirement)
-- OT absorbs shock → OPD absorbs remaining shock
-
-## TRAINING QUOTAS (for PGs)
-- PGs must appear in OT at least 8 hours/week (observation/assistance)
-- But NEVER full-day OT alone
-- Preference for varied specialty exposure
+2. Max OT days per week (PG): 0 (no independent OT)
+3. Max OT days per week (MO): 2
+4. Avoid same duty 2 days in a row for same doctor
+5. Rotate night duty among PG/Fellow doctors (NOT MO or Consultant)
+6. Respect fixed_off_days (religious observances, childcare)
+7. Consider health_constraints (pregnancy, medical conditions)
+8. Track night_duty_count vs max_night_duties_per_month
 
 ## OUTPUT FORMAT
 Respond with a JSON object:
@@ -100,15 +118,15 @@ Respond with a JSON object:
       "unit": "OT-1|OT-2|OPD-1|OPD-2|Emergency|Ward-A|etc",
       "startTime": "HH:MM",
       "endTime": "HH:MM",
-      "reason": "brief explanation (e.g., 'High performer, matched specialty')"
+      "reason": "brief explanation including rule validation"
     }
   ],
-  "reasoning": "overall explanation of scheduling decisions and fairness considerations",
+  "reasoning": "overall explanation including which role-based rules were applied",
   "workloadSummary": {
     "balanced": true/false,
     "fairnessScore": 0-100,
-    "concerns": ["list of any fairness or coverage concerns"],
-    "notes": "recommendations or warnings"
+    "concerns": ["list any rule violations or near-violations"],
+    "notes": "recommendations or warnings about role constraints"
   },
   "campAssignments": [
     {
@@ -116,7 +134,8 @@ Respond with a JSON object:
       "campName": "name",
       "assignedDoctors": [{"doctorId": "uuid", "doctorName": "name", "role": "lead|support"}]
     }
-  ]
+  ],
+  "ruleViolations": ["list any attempted assignments that were blocked by rules"]
 }`;
 
     // Build detailed doctor info with constraints and performance data

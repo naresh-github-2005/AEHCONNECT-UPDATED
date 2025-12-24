@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,8 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { createSwapRequest, DutyWithDoctor, useRealtimeDutyAssignments } from '@/hooks/useRealtimeData';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeftRight, Loader2 } from 'lucide-react';
+import { ArrowLeftRight, Loader2, AlertTriangle, Info } from 'lucide-react';
 import { format } from 'date-fns';
+import { isDutyAllowed, getDesignationLabel, DoctorProfile } from '@/lib/dutyRules';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SwapRequestDialogProps {
   open: boolean;
@@ -25,13 +29,45 @@ export const SwapRequestDialog: React.FC<SwapRequestDialogProps> = ({
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('');
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [myDoctorProfile, setMyDoctorProfile] = React.useState<DoctorProfile | null>(null);
   
   const { assignments } = useRealtimeDutyAssignments(myAssignment.duty_date);
+
+  // Fetch my doctor profile for role-based validation
+  React.useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user?.doctorId) return;
+      const { data } = await supabase
+        .from('doctors')
+        .select('id, name, designation, specialty, created_at')
+        .eq('id', user.doctorId)
+        .single();
+      if (data) {
+        setMyDoctorProfile(data as DoctorProfile);
+      }
+    };
+    fetchProfile();
+  }, [user?.doctorId]);
   
-  // Filter out my own assignment and show only other doctors' duties
-  const availableSwaps = assignments.filter(
-    a => a.id !== myAssignment.id && a.doctor_id !== myAssignment.doctor_id
-  );
+  // Filter available swaps based on role restrictions
+  const availableSwaps = useMemo(() => {
+    if (!myDoctorProfile) {
+      return assignments.filter(
+        a => a.id !== myAssignment.id && a.doctor_id !== myAssignment.doctor_id
+      );
+    }
+
+    return assignments.filter(a => {
+      // Exclude my own assignment
+      if (a.id === myAssignment.id || a.doctor_id === myAssignment.doctor_id) {
+        return false;
+      }
+
+      // Check if I can take their duty based on role rules
+      const result = isDutyAllowed(myDoctorProfile, a.duty_type);
+      return result.allowed;
+    });
+  }, [assignments, myAssignment, myDoctorProfile]);
 
   const selectedAssignment = availableSwaps.find(a => a.id === selectedAssignmentId);
 
@@ -77,10 +113,28 @@ export const SwapRequestDialog: React.FC<SwapRequestDialogProps> = ({
         </DialogHeader>
         
         <div className="space-y-4 py-4">
+          {/* Role info */}
+          {myDoctorProfile && (
+            <Alert className="bg-muted/50">
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                As a <strong>{getDesignationLabel(myDoctorProfile.designation)}</strong>, 
+                you can only swap for duties allowed by your role.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* My duty */}
           <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
             <Label className="text-xs text-muted-foreground">Your Duty</Label>
-            <p className="font-medium">{myAssignment.duty_type}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="font-medium">{myAssignment.duty_type}</p>
+              {myDoctorProfile && (
+                <Badge variant="outline" className="text-[10px]">
+                  {getDesignationLabel(myDoctorProfile.designation)}
+                </Badge>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">
               {myAssignment.unit} • {myAssignment.start_time} - {myAssignment.end_time}
             </p>
@@ -92,15 +146,21 @@ export const SwapRequestDialog: React.FC<SwapRequestDialogProps> = ({
           
           {/* Select target duty */}
           <div className="space-y-2">
-            <Label>Swap with</Label>
+            <Label>Swap with (showing only duties allowed for your role)</Label>
             <Select value={selectedAssignmentId} onValueChange={setSelectedAssignmentId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a duty to swap with" />
               </SelectTrigger>
               <SelectContent>
                 {availableSwaps.length === 0 ? (
-                  <div className="p-2 text-center text-sm text-muted-foreground">
-                    No other duties available for swap
+                  <div className="p-3 text-center">
+                    <AlertTriangle className="w-5 h-5 mx-auto text-warning mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      No compatible duties available for swap
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Only duties allowed for your role are shown
+                    </p>
                   </div>
                 ) : (
                   availableSwaps.map((assignment) => (
