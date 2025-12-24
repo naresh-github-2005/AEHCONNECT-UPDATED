@@ -1,15 +1,32 @@
 import React, { useState, useMemo } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { DutyBadge, PhoneButton, DoctorAvatar } from '@/components/ui/DutyComponents';
-import { Search, Filter, X, ArrowLeftRight, RefreshCw, Wifi } from 'lucide-react';
+import { Search, Filter, X, ArrowLeftRight, RefreshCw, Wifi, Calendar, Clock, MapPin, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useRealtimeDutyAssignments, DutyWithDoctor } from '@/hooks/useRealtimeData';
 import { useAuth } from '@/contexts/AuthContext';
 import { SwapRequestDialog } from '@/components/roster/SwapRequestDialog';
 import { SwapRequestsList } from '@/components/roster/SwapRequestsList';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  ContextMenuSeparator,
+  ContextMenuLabel,
+} from '@/components/ui/context-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 import type { Database } from '@/integrations/supabase/types';
 
 type DutyType = Database['public']['Enums']['duty_type'];
@@ -71,38 +88,88 @@ const Roster: React.FC = () => {
       <SwapRequestsList />
 
       {/* My Duties Section (for doctors) */}
-      {user?.role === 'doctor' && myAssignments.length > 0 && (
-        <div className="space-y-2 animate-slide-up">
-          <h3 className="text-sm font-medium text-foreground">Your Duties Today</h3>
-          <div className="space-y-2">
-            {myAssignments.map((assignment) => (
-              <Card key={assignment.id} className="border-primary/30 bg-primary/5">
-                <CardContent className="py-3 px-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <DutyBadge type={assignment.duty_type} />
-                      <div>
-                        <p className="font-medium text-sm">{assignment.unit}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {assignment.start_time} — {assignment.end_time}
-                        </p>
+      {user?.role === 'doctor' && (
+        <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10 animate-slide-up">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-primary" />
+              Your Duties Today
+              {myAssignments.length > 0 && (
+                <Badge variant="secondary" className="ml-auto">
+                  {myAssignments.length} {myAssignments.length === 1 ? 'duty' : 'duties'}
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {myAssignments.length === 0 ? (
+              <div className="py-6 text-center">
+                <Calendar className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
+                <p className="text-sm text-muted-foreground">No duties assigned for today</p>
+              </div>
+            ) : (
+              myAssignments.map((assignment) => (
+                <ContextMenu key={assignment.id}>
+                  <ContextMenuTrigger>
+                    <div className="group relative p-3 rounded-lg bg-card border border-border hover:border-primary/50 hover:shadow-md transition-all cursor-context-menu">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-1">
+                          <DutyBadge type={assignment.duty_type} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm">{assignment.duty_type}</p>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                {assignment.unit}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {assignment.start_time} — {assignment.end_time}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Mobile dropdown menu */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Duty Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleSwapRequest(assignment)}>
+                              <ArrowLeftRight className="w-4 h-4 mr-2" />
+                              Request Exchange
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      
+                      {/* Right-click hint */}
+                      <div className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-[10px] text-muted-foreground">Right-click for options</span>
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSwapRequest(assignment)}
-                      className="gap-1"
-                    >
-                      <ArrowLeftRight className="w-4 h-4" />
-                      Swap
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
+                  </ContextMenuTrigger>
+                  
+                  <ContextMenuContent className="w-48">
+                    <ContextMenuLabel>Duty: {assignment.duty_type}</ContextMenuLabel>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem onClick={() => handleSwapRequest(assignment)}>
+                      <ArrowLeftRight className="w-4 h-4 mr-2" />
+                      Request Exchange
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              ))
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Search */}
