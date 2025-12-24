@@ -8,7 +8,8 @@ import {
   FileText, 
   Settings,
   LogOut,
-  MessageSquare
+  MessageSquare,
+  Clock
 } from 'lucide-react';
 
 interface NavItem {
@@ -21,7 +22,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { icon: Home, label: 'Dashboard', path: '/dashboard' },
   { icon: Calendar, label: 'Roster', path: '/roster' },
-  { icon: MessageSquare, label: 'Messages', path: '/messages' },
+  { icon: Clock, label: 'Attendance', path: '/attendance' },
   { icon: FileText, label: 'Leave', path: '/leave' },
   { icon: Settings, label: 'Admin', path: '/admin', adminOnly: true },
 ];
