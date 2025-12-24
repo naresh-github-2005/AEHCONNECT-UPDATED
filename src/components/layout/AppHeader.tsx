@@ -1,7 +1,8 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { Menu, Bell } from 'lucide-react';
+import { Bell } from 'lucide-react';
 
 interface AppHeaderProps {
   title?: string;
@@ -15,6 +16,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   showNotification = true 
 }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   
   return (
     <header className="glass-header text-primary-foreground sticky top-0 z-40 pt-safe-top">
@@ -35,7 +37,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         
         <div className="flex items-center gap-2">
           {showNotification && (
-            <button className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-primary-foreground/20 transition-colors relative">
+            <button 
+              onClick={() => navigate('/messages')}
+              className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-primary-foreground/20 transition-colors relative"
+            >
               <Bell className="w-5 h-5" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-warning rounded-full" />
             </button>
