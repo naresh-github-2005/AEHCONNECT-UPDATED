@@ -16,6 +16,7 @@ import Analytics from "./pages/Analytics";
 import CampManagement from "./pages/CampManagement";
 import DoctorProfiles from "./pages/DoctorProfiles";
 import Messages from "./pages/Messages";
+import Attendance from "./pages/Attendance";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -150,6 +151,17 @@ const AppRoutes: React.FC = () => {
           <ProtectedRoute>
             <AppLayout>
               <Messages />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/attendance"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <Attendance />
             </AppLayout>
           </ProtectedRoute>
         }
