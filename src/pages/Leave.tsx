@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { StatusBadge } from '@/components/ui/DutyComponents';
-import { CalendarIcon, Plus, Check, Calendar as CalendarDays, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { CalendarIcon, Plus, Check, Calendar as CalendarDays, Clock, CheckCircle2, XCircle, User } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
 
-type LeaveRequest = Tables<'leave_requests'>;
+type LeaveRequest = Tables<'leave_requests'> & {
+  doctor?: { name: string } | null;
+};
 type LeaveType = 'Casual' | 'Emergency' | 'Medical' | 'Annual';
 
 const leaveTypes: LeaveType[] = ['Casual', 'Emergency', 'Medical', 'Annual'];
@@ -27,11 +29,14 @@ const Leave: React.FC = () => {
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [selectedLeaveType, setSelectedLeaveType] = useState<LeaveType | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
-  // Fetch doctor ID for current user
+  const isAdmin = user?.role === 'admin';
+
+  // Fetch doctor ID for current user (only for doctors)
   useEffect(() => {
     const fetchDoctorId = async () => {
-      if (!user) return;
+      if (!user || isAdmin) return;
       
       const { data } = await supabase
         .from('doctors')
@@ -45,31 +50,48 @@ const Leave: React.FC = () => {
     };
     
     fetchDoctorId();
-  }, [user]);
+  }, [user, isAdmin]);
 
   // Fetch leave requests with real-time updates
   useEffect(() => {
     const fetchLeaveRequests = async () => {
-      if (!doctorId) {
+      if (!user) {
         setIsLoading(false);
         return;
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('leave_requests')
-        .select('*')
-        .eq('doctor_id', doctorId)
+        .select('*, doctor:doctors(name)')
         .order('created_at', { ascending: false });
+
+      // If admin, show all requests (prioritize pending)
+      // If doctor, show only their requests
+      if (!isAdmin && doctorId) {
+        query = query.eq('doctor_id', doctorId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching leave requests:', error);
       } else {
-        setLeaveRequests(data || []);
+        // Sort to show pending first for admin
+        const sorted = isAdmin 
+          ? [...(data || [])].sort((a, b) => {
+              if (a.status === 'pending' && b.status !== 'pending') return -1;
+              if (a.status !== 'pending' && b.status === 'pending') return 1;
+              return new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime();
+            })
+          : data || [];
+        setLeaveRequests(sorted);
       }
       setIsLoading(false);
     };
 
-    fetchLeaveRequests();
+    if (isAdmin || doctorId) {
+      fetchLeaveRequests();
+    }
 
     // Subscribe to real-time changes
     const channel = supabase
@@ -80,7 +102,6 @@ const Leave: React.FC = () => {
           event: '*',
           schema: 'public',
           table: 'leave_requests',
-          filter: doctorId ? `doctor_id=eq.${doctorId}` : undefined,
         },
         () => {
           fetchLeaveRequests();
@@ -91,7 +112,7 @@ const Leave: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [doctorId]);
+  }, [user, doctorId, isAdmin]);
 
   const handleSubmit = async () => {
     if (!startDate || !endDate || !selectedLeaveType || !doctorId) return;
@@ -118,13 +139,42 @@ const Leave: React.FC = () => {
         description: `Your ${selectedLeaveType.toLowerCase()} leave request has been submitted for approval.`,
       });
 
-      // Reset form
       setStartDate(undefined);
       setEndDate(undefined);
       setSelectedLeaveType(null);
     }
 
     setIsSubmitting(false);
+  };
+
+  const handleApprove = async (requestId: string) => {
+    setProcessingId(requestId);
+    const { error } = await supabase
+      .from('leave_requests')
+      .update({ status: 'approved', reviewed_by: user?.id, reviewed_at: new Date().toISOString() })
+      .eq('id', requestId);
+
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to approve leave request.', variant: 'destructive' });
+    } else {
+      toast({ title: 'Approved', description: 'Leave request has been approved.' });
+    }
+    setProcessingId(null);
+  };
+
+  const handleReject = async (requestId: string) => {
+    setProcessingId(requestId);
+    const { error } = await supabase
+      .from('leave_requests')
+      .update({ status: 'rejected', reviewed_by: user?.id, reviewed_at: new Date().toISOString() })
+      .eq('id', requestId);
+
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to reject leave request.', variant: 'destructive' });
+    } else {
+      toast({ title: 'Rejected', description: 'Leave request has been rejected.' });
+    }
+    setProcessingId(null);
   };
 
   // Calculate analytics
@@ -144,9 +194,149 @@ const Leave: React.FC = () => {
   const canSubmit = startDate && endDate && selectedLeaveType && !isSubmitting && doctorId;
   const leaveDays = startDate && endDate ? differenceInDays(endDate, startDate) + 1 : 0;
 
+  // Admin View - Leave Approval
+  if (isAdmin) {
+    return (
+      <div className="px-4 py-6 space-y-6">
+        <div className="animate-fade-in">
+          <h2 className="text-title text-foreground">Leave Management</h2>
+          <p className="text-caption text-muted-foreground">
+            Review and approve leave requests
+          </p>
+        </div>
+
+        {/* Analytics Cards */}
+        <div className="grid grid-cols-2 gap-3 animate-slide-up">
+          <Card className="shadow-soft bg-warning/5 border-warning/20">
+            <CardContent className="py-4 px-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-warning" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{analytics.pending}</p>
+                  <p className="text-tiny text-muted-foreground">Pending Approval</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-soft bg-success/5 border-success/20">
+            <CardContent className="py-4 px-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-success" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{analytics.approved}</p>
+                  <p className="text-tiny text-muted-foreground">Approved</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-soft bg-destructive/5 border-destructive/20">
+            <CardContent className="py-4 px-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <XCircle className="w-5 h-5 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{analytics.rejected}</p>
+                  <p className="text-tiny text-muted-foreground">Rejected</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-soft bg-primary/5 border-primary/20">
+            <CardContent className="py-4 px-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <CalendarDays className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{analytics.total}</p>
+                  <p className="text-tiny text-muted-foreground">Total Requests</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Leave Requests List */}
+        <div className="animate-slide-up stagger-1">
+          <h3 className="text-subtitle text-foreground mb-3">Leave Requests</h3>
+          <div className="space-y-3">
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i} className="shadow-soft animate-pulse">
+                    <CardContent className="py-4 px-4">
+                      <div className="h-16 bg-muted rounded" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : leaveRequests.length > 0 ? (
+              leaveRequests.map((leave) => (
+                <Card key={leave.id} className={cn("shadow-soft", leave.status === 'pending' && "border-warning/30 bg-warning/5")}>
+                  <CardContent className="py-4 px-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <User className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-body font-medium text-foreground">
+                            {leave.doctor?.name || 'Unknown Doctor'}
+                          </span>
+                          <StatusBadge status={(leave.status?.charAt(0).toUpperCase() + leave.status?.slice(1)) as 'Approved' | 'Pending' | 'Rejected' || 'Pending'} />
+                        </div>
+                        <p className="text-caption text-muted-foreground">
+                          {leave.leave_type} Leave • {format(new Date(leave.start_date), 'MMM d')} — {format(new Date(leave.end_date), 'MMM d, yyyy')}
+                        </p>
+                        <p className="text-tiny text-muted-foreground mt-0.5">
+                          {differenceInDays(new Date(leave.end_date), new Date(leave.start_date)) + 1} day(s) • Applied {leave.created_at && format(new Date(leave.created_at), 'MMM d')}
+                        </p>
+                      </div>
+                      {leave.status === 'pending' && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleReject(leave.id)}
+                            disabled={processingId === leave.id}
+                            className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleApprove(leave.id)}
+                            disabled={processingId === leave.id}
+                            className="bg-success hover:bg-success/90"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-body text-muted-foreground">No leave requests found</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Doctor View - Leave Application
   return (
     <div className="px-4 py-6 space-y-6">
-      {/* Header */}
       <div className="animate-fade-in">
         <h2 className="text-title text-foreground">Apply Leave</h2>
         <p className="text-caption text-muted-foreground">
