@@ -1,51 +1,147 @@
-import React, { useState } from 'react';
-import { useData } from '@/contexts/DataContext';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { StatusBadge } from '@/components/ui/DutyComponents';
-import { LeaveType } from '@/lib/mockData';
-import { CalendarIcon, Plus, Check } from 'lucide-react';
+import { CalendarIcon, Plus, Check, Calendar as CalendarDays, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { Tables } from '@/integrations/supabase/types';
 
-const leaveTypes: LeaveType[] = ['Casual', 'Emergency'];
+type LeaveRequest = Tables<'leave_requests'>;
+type LeaveType = 'Casual' | 'Emergency' | 'Medical' | 'Annual';
+
+const leaveTypes: LeaveType[] = ['Casual', 'Emergency', 'Medical', 'Annual'];
 
 const Leave: React.FC = () => {
-  const { leaveRequests, applyLeave } = useData();
+  const { user } = useAuth();
   const { toast } = useToast();
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [doctorId, setDoctorId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [selectedLeaveType, setSelectedLeaveType] = useState<LeaveType | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Fetch doctor ID for current user
+  useEffect(() => {
+    const fetchDoctorId = async () => {
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (data) {
+        setDoctorId(data.id);
+      }
+    };
+    
+    fetchDoctorId();
+  }, [user]);
+
+  // Fetch leave requests with real-time updates
+  useEffect(() => {
+    const fetchLeaveRequests = async () => {
+      if (!doctorId) {
+        setIsLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .eq('doctor_id', doctorId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching leave requests:', error);
+      } else {
+        setLeaveRequests(data || []);
+      }
+      setIsLoading(false);
+    };
+
+    fetchLeaveRequests();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel('leave-requests-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'leave_requests',
+          filter: doctorId ? `doctor_id=eq.${doctorId}` : undefined,
+        },
+        () => {
+          fetchLeaveRequests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [doctorId]);
+
   const handleSubmit = async () => {
-    if (!startDate || !endDate || !selectedLeaveType) return;
+    if (!startDate || !endDate || !selectedLeaveType || !doctorId) return;
 
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    applyLeave(
-      format(startDate, 'yyyy-MM-dd'),
-      format(endDate, 'yyyy-MM-dd'),
-      selectedLeaveType
-    );
-
-    toast({
-      title: 'Leave Request Submitted',
-      description: `Your ${selectedLeaveType.toLowerCase()} leave request has been submitted for approval.`,
+    const { error } = await supabase.from('leave_requests').insert({
+      doctor_id: doctorId,
+      start_date: format(startDate, 'yyyy-MM-dd'),
+      end_date: format(endDate, 'yyyy-MM-dd'),
+      leave_type: selectedLeaveType,
+      status: 'pending',
     });
 
-    // Reset form
-    setStartDate(undefined);
-    setEndDate(undefined);
-    setSelectedLeaveType(null);
+    if (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to submit leave request. Please try again.',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Leave Request Submitted',
+        description: `Your ${selectedLeaveType.toLowerCase()} leave request has been submitted for approval.`,
+      });
+
+      // Reset form
+      setStartDate(undefined);
+      setEndDate(undefined);
+      setSelectedLeaveType(null);
+    }
+
     setIsSubmitting(false);
   };
 
-  const canSubmit = startDate && endDate && selectedLeaveType && !isSubmitting;
+  // Calculate analytics
+  const analytics = {
+    total: leaveRequests.length,
+    pending: leaveRequests.filter((l) => l.status === 'pending').length,
+    approved: leaveRequests.filter((l) => l.status === 'approved').length,
+    rejected: leaveRequests.filter((l) => l.status === 'rejected').length,
+    totalDays: leaveRequests
+      .filter((l) => l.status === 'approved')
+      .reduce((acc, l) => {
+        const days = differenceInDays(new Date(l.end_date), new Date(l.start_date)) + 1;
+        return acc + days;
+      }, 0),
+  };
+
+  const canSubmit = startDate && endDate && selectedLeaveType && !isSubmitting && doctorId;
   const leaveDays = startDate && endDate ? differenceInDays(endDate, startDate) + 1 : 0;
 
   return (
@@ -58,8 +154,67 @@ const Leave: React.FC = () => {
         </p>
       </div>
 
+      {/* Analytics Cards */}
+      <div className="grid grid-cols-2 gap-3 animate-slide-up">
+        <Card className="shadow-soft bg-primary/5 border-primary/20">
+          <CardContent className="py-4 px-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <CalendarDays className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{analytics.total}</p>
+                <p className="text-tiny text-muted-foreground">Total Requests</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-soft bg-success/5 border-success/20">
+          <CardContent className="py-4 px-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-success" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{analytics.approved}</p>
+                <p className="text-tiny text-muted-foreground">Approved</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-soft bg-warning/5 border-warning/20">
+          <CardContent className="py-4 px-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center">
+                <Clock className="w-5 h-5 text-warning" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{analytics.pending}</p>
+                <p className="text-tiny text-muted-foreground">Pending</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-soft bg-accent/5 border-accent/20">
+          <CardContent className="py-4 px-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+                <CalendarDays className="w-5 h-5 text-accent-foreground" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{analytics.totalDays}</p>
+                <p className="text-tiny text-muted-foreground">Days Taken</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Leave Form */}
-      <Card className="shadow-card animate-slide-up">
+      <Card className="shadow-card animate-slide-up stagger-1">
         <CardHeader className="pb-4">
           <CardTitle className="text-subtitle flex items-center gap-2">
             <Plus className="w-5 h-5" />
@@ -202,33 +357,46 @@ const Leave: React.FC = () => {
       </Card>
 
       {/* Leave History */}
-      <div className="animate-slide-up stagger-1">
+      <div className="animate-slide-up stagger-2">
         <h3 className="text-subtitle text-foreground mb-3">Leave History</h3>
         <div className="space-y-3">
-          {leaveRequests.map((leave, index) => (
-            <Card key={leave.id} className="shadow-soft">
-              <CardContent className="py-4 px-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-body font-medium text-foreground">
-                        {leave.leaveType} Leave
-                      </span>
-                      <StatusBadge status={leave.status} />
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="shadow-soft animate-pulse">
+                  <CardContent className="py-4 px-4">
+                    <div className="h-12 bg-muted rounded" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : leaveRequests.length > 0 ? (
+            leaveRequests.map((leave) => (
+              <Card key={leave.id} className="shadow-soft">
+                <CardContent className="py-4 px-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-body font-medium text-foreground">
+                          {leave.leave_type} Leave
+                        </span>
+                        <StatusBadge status={(leave.status?.charAt(0).toUpperCase() + leave.status?.slice(1)) as 'Approved' | 'Pending' | 'Rejected' || 'Pending'} />
+                      </div>
+                      <p className="text-caption text-muted-foreground mt-1">
+                        {format(new Date(leave.start_date), 'MMM d')} — {format(new Date(leave.end_date), 'MMM d, yyyy')}
+                      </p>
+                      <p className="text-tiny text-muted-foreground mt-0.5">
+                        {differenceInDays(new Date(leave.end_date), new Date(leave.start_date)) + 1} day(s)
+                      </p>
                     </div>
-                    <p className="text-caption text-muted-foreground mt-1">
-                      {format(new Date(leave.startDate), 'MMM d')} — {format(new Date(leave.endDate), 'MMM d, yyyy')}
+                    <p className="text-tiny text-muted-foreground">
+                      {leave.created_at && format(new Date(leave.created_at), 'MMM d')}
                     </p>
                   </div>
-                  <p className="text-tiny text-muted-foreground">
-                    {format(new Date(leave.appliedAt), 'MMM d')}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-
-          {leaveRequests.length === 0 && (
+                </CardContent>
+              </Card>
+            ))
+          ) : (
             <div className="text-center py-8">
               <p className="text-body text-muted-foreground">No leave requests yet</p>
             </div>
