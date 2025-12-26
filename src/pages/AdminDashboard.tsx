@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   Tent,
   Users,
-  ChevronRight
+  ChevronRight,
+  GraduationCap
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -166,6 +167,26 @@ const AdminDashboard: React.FC = () => {
                 <div>
                   <p className="text-body font-medium text-foreground">Doctors</p>
                   <p className="text-tiny text-muted-foreground">Profiles</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card 
+          className="shadow-soft cursor-pointer hover:border-primary/50 transition-colors"
+          onClick={() => navigate('/academic')}
+        >
+          <CardContent className="py-4 px-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+                  <GraduationCap className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <p className="text-body font-medium text-foreground">Academic</p>
+                  <p className="text-tiny text-muted-foreground">Classes</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
