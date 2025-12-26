@@ -327,6 +327,113 @@ export type Database = {
           },
         ]
       }
+      class_attendees: {
+        Row: {
+          attended: boolean | null
+          class_id: string
+          created_at: string
+          doctor_id: string | null
+          doctor_name: string | null
+          id: string
+          role: string
+        }
+        Insert: {
+          attended?: boolean | null
+          class_id: string
+          created_at?: string
+          doctor_id?: string | null
+          doctor_name?: string | null
+          id?: string
+          role?: string
+        }
+        Update: {
+          attended?: boolean | null
+          class_id?: string
+          created_at?: string
+          doctor_id?: string | null
+          doctor_name?: string | null
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_attendees_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_attendees_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      classes: {
+        Row: {
+          batch: string | null
+          class_date: string
+          class_type: Database["public"]["Enums"]["class_type"]
+          created_at: string
+          created_by: string | null
+          end_time: string
+          id: string
+          location: string | null
+          moderator_id: string | null
+          moderator_name: string | null
+          notes: string | null
+          start_time: string
+          title: string
+          topic: string | null
+          updated_at: string
+        }
+        Insert: {
+          batch?: string | null
+          class_date: string
+          class_type?: Database["public"]["Enums"]["class_type"]
+          created_at?: string
+          created_by?: string | null
+          end_time?: string
+          id?: string
+          location?: string | null
+          moderator_id?: string | null
+          moderator_name?: string | null
+          notes?: string | null
+          start_time?: string
+          title: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          batch?: string | null
+          class_date?: string
+          class_type?: Database["public"]["Enums"]["class_type"]
+          created_at?: string
+          created_by?: string | null
+          end_time?: string
+          id?: string
+          location?: string | null
+          moderator_id?: string | null
+          moderator_name?: string | null
+          notes?: string | null
+          start_time?: string
+          title?: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classes_moderator_id_fkey"
+            columns: ["moderator_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       doctor_duty_stats: {
         Row: {
           camp_count: number
@@ -650,6 +757,16 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "doctor"
+      class_type:
+        | "lecture"
+        | "grand_rounds"
+        | "case_presentation"
+        | "journal_club"
+        | "complication_meeting"
+        | "nbems_class"
+        | "pharma_quiz"
+        | "exam"
+        | "other"
       designation_level: "pg" | "fellow" | "mo" | "consultant"
       duty_type:
         | "OPD"
@@ -808,6 +925,17 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "doctor"],
+      class_type: [
+        "lecture",
+        "grand_rounds",
+        "case_presentation",
+        "journal_club",
+        "complication_meeting",
+        "nbems_class",
+        "pharma_quiz",
+        "exam",
+        "other",
+      ],
       designation_level: ["pg", "fellow", "mo", "consultant"],
       duty_type: [
         "OPD",
