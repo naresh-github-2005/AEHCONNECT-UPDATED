@@ -1,12 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DutyBadge, DoctorAvatar } from '@/components/ui/DutyComponents';
-import { ChevronLeft, ChevronRight, RefreshCw, Users, Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, Users, Download, FileSpreadsheet, FileText, Wifi } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, addMonths, subMonths } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -58,9 +58,11 @@ const dutyTypeColors: Record<string, string> = {
 
 const MonthlyRosterView: React.FC = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [isLive, setIsLive] = useState(true);
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -87,6 +89,80 @@ const MonthlyRosterView: React.FC = () => {
       return (data as unknown as DutyAssignment[]) || [];
     },
   });
+
+  // Real-time subscriptions for duty assignments, leave requests, and camps
+  useEffect(() => {
+    const monthKey = format(monthStart, 'yyyy-MM');
+    
+    // Subscribe to duty assignment changes
+    const dutyChannel = supabase
+      .channel(`monthly-duties-${monthKey}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'duty_assignments'
+        },
+        (payload) => {
+          console.log('Duty assignment change detected:', payload);
+          refetch();
+          toast.info('Roster updated in real-time', { duration: 2000 });
+        }
+      )
+      .subscribe((status) => {
+        setIsLive(status === 'SUBSCRIBED');
+      });
+
+    // Subscribe to leave request changes (approved leaves may affect roster)
+    const leaveChannel = supabase
+      .channel(`monthly-leaves-${monthKey}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'leave_requests'
+        },
+        (payload) => {
+          console.log('Leave request change detected:', payload);
+          // Refresh to show updated availability
+          refetch();
+          if (payload.eventType === 'INSERT') {
+            toast.info('New leave request submitted', { duration: 2000 });
+          } else if (payload.eventType === 'UPDATE') {
+            toast.info('Leave status updated', { duration: 2000 });
+          }
+        }
+      )
+      .subscribe();
+
+    // Subscribe to camp changes (new camps may require roster adjustments)
+    const campChannel = supabase
+      .channel(`monthly-camps-${monthKey}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'camps'
+        },
+        (payload) => {
+          console.log('Camp change detected:', payload);
+          refetch();
+          if (payload.eventType === 'INSERT') {
+            toast.info('New camp added - roster may need adjustment', { duration: 3000 });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(dutyChannel);
+      supabase.removeChannel(leaveChannel);
+      supabase.removeChannel(campChannel);
+    };
+  }, [monthStart, refetch]);
 
   const daysInMonth = useMemo(() => {
     return eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -175,6 +251,14 @@ const MonthlyRosterView: React.FC = () => {
           </Button>
         </div>
         <div className="flex items-center gap-2">
+          {/* Live indicator */}
+          <div className={cn(
+            "flex items-center gap-1 text-xs px-2 py-1 rounded-full",
+            isLive ? "text-green-600 bg-green-50" : "text-muted-foreground bg-muted"
+          )}>
+            <Wifi className={cn("w-3 h-3", isLive && "animate-pulse")} />
+            <span className="hidden sm:inline">{isLive ? 'Live' : 'Offline'}</span>
+          </div>
           <Button variant="outline" size="sm" onClick={handleToday}>
             Today
           </Button>

@@ -23,6 +23,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import AISchedulingAssistant from '@/components/admin/AISchedulingAssistant';
+import MonthlyRosterGenerator from '@/components/admin/MonthlyRosterGenerator';
 import { Tables } from '@/integrations/supabase/types';
 
 type LeaveRequest = Tables<'leave_requests'> & {
@@ -195,9 +196,10 @@ const AdminDashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* AI Scheduling Assistant */}
-      <div className="animate-slide-up">
+      {/* AI Scheduling Assistants */}
+      <div className="grid gap-4 lg:grid-cols-2 animate-slide-up">
         <AISchedulingAssistant />
+        <MonthlyRosterGenerator />
       </div>
 
       {/* Generate Roster Card */}
