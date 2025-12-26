@@ -18,6 +18,7 @@ import DoctorProfiles from "./pages/DoctorProfiles";
 import Messages from "./pages/Messages";
 import Attendance from "./pages/Attendance";
 import Academic from "./pages/Academic";
+import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -178,6 +179,8 @@ const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         }
       />
+      
+      <Route path="/install" element={<Install />} />
       
       <Route path="*" element={<NotFound />} />
     </Routes>
