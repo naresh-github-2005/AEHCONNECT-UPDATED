@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/contexts/DataContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge, DoctorAvatar } from '@/components/ui/DutyComponents';
@@ -20,22 +22,63 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import AISchedulingAssistant from '@/components/admin/AISchedulingAssistant';
+import { Tables } from '@/integrations/supabase/types';
+
+type LeaveRequest = Tables<'leave_requests'> & {
+  doctor?: { name: string } | null;
+};
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { 
     dutyAssignments, 
-    leaveRequests, 
     activityLog, 
     generateRoster, 
-    approveLeave, 
-    rejectLeave,
     lastUpdated 
   } = useData();
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
-  const pendingLeaves = leaveRequests.filter((l) => l.status === 'Pending');
+  // Fetch leave requests from Supabase
+  useEffect(() => {
+    const fetchLeaveRequests = async () => {
+      const { data, error } = await supabase
+        .from('leave_requests')
+        .select('*, doctor:doctors(name)')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setLeaveRequests(data);
+      }
+    };
+
+    fetchLeaveRequests();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel('admin-leave-requests')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'leave_requests',
+        },
+        () => {
+          fetchLeaveRequests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const pendingLeaves = leaveRequests.filter((l) => l.status === 'pending');
 
   const handleGenerateRoster = async () => {
     setIsGenerating(true);
@@ -48,20 +91,34 @@ const AdminDashboard: React.FC = () => {
     setIsGenerating(false);
   };
 
-  const handleApproveLeave = (leaveId: string) => {
-    approveLeave(leaveId);
-    toast({
-      title: 'Leave Approved',
-      description: 'The leave request has been approved.',
-    });
+  const handleApproveLeave = async (leaveId: string) => {
+    setProcessingId(leaveId);
+    const { error } = await supabase
+      .from('leave_requests')
+      .update({ status: 'approved', reviewed_by: user?.id, reviewed_at: new Date().toISOString() })
+      .eq('id', leaveId);
+
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to approve leave request.', variant: 'destructive' });
+    } else {
+      toast({ title: 'Leave Approved', description: 'The leave request has been approved.' });
+    }
+    setProcessingId(null);
   };
 
-  const handleRejectLeave = (leaveId: string) => {
-    rejectLeave(leaveId);
-    toast({
-      title: 'Leave Rejected',
-      description: 'The leave request has been rejected.',
-    });
+  const handleRejectLeave = async (leaveId: string) => {
+    setProcessingId(leaveId);
+    const { error } = await supabase
+      .from('leave_requests')
+      .update({ status: 'rejected', reviewed_by: user?.id, reviewed_at: new Date().toISOString() })
+      .eq('id', leaveId);
+
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to reject leave request.', variant: 'destructive' });
+    } else {
+      toast({ title: 'Leave Rejected', description: 'The leave request has been rejected.' });
+    }
+    setProcessingId(null);
   };
 
   return (
@@ -211,22 +268,23 @@ const AdminDashboard: React.FC = () => {
               <Card key={leave.id} className="shadow-soft border-warning/30">
                 <CardContent className="py-4 px-4">
                   <div className="flex items-start gap-3">
-                    <DoctorAvatar name={leave.doctor.name} size="sm" />
+                    <DoctorAvatar name={leave.doctor?.name || 'Unknown'} size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="text-body font-medium text-foreground">
-                        {leave.doctor.name}
+                        {leave.doctor?.name || 'Unknown Doctor'}
                       </p>
                       <p className="text-tiny text-muted-foreground">
-                        {leave.leaveType} Leave • {format(new Date(leave.startDate), 'MMM d')} — {format(new Date(leave.endDate), 'MMM d')}
+                        {leave.leave_type} Leave • {format(new Date(leave.start_date), 'MMM d')} — {format(new Date(leave.end_date), 'MMM d')}
                       </p>
                     </div>
-                    <StatusBadge status={leave.status} />
+                    <StatusBadge status={(leave.status?.charAt(0).toUpperCase() + leave.status?.slice(1)) as 'Approved' | 'Pending' | 'Rejected'} />
                   </div>
                   <div className="flex gap-2 mt-3">
                     <Button
                       onClick={() => handleApproveLeave(leave.id)}
                       size="sm"
                       className="flex-1 h-9"
+                      disabled={processingId === leave.id}
                     >
                       <CheckCircle2 className="w-4 h-4 mr-1" />
                       Approve
@@ -236,6 +294,7 @@ const AdminDashboard: React.FC = () => {
                       variant="outline"
                       size="sm"
                       className="flex-1 h-9 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                      disabled={processingId === leave.id}
                     >
                       <XCircle className="w-4 h-4 mr-1" />
                       Reject
