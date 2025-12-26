@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, RefreshCw, Calendar, Moon, Sun, Tent, Activity } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, Calendar, Moon, Sun, Tent, Activity, Download, FileSpreadsheet, FileText } from 'lucide-react';
 import { format, startOfYear, endOfYear, eachMonthOfInterval, addYears, subYears } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -17,6 +17,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { exportYearlyStatsToPDF, exportYearlyStatsToExcel } from '@/lib/exportUtils';
+import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
 type DutyType = Database['public']['Enums']['duty_type'];
@@ -138,6 +146,24 @@ const YearlyRosterView: React.FC = () => {
   const handleNextYear = () => setCurrentYear(currentYear + 1);
   const handleCurrentYear = () => setCurrentYear(new Date().getFullYear());
 
+  const handleExportPDF = () => {
+    if (doctorStats.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    exportYearlyStatsToPDF(doctorStats, currentYear, yearlyTotals);
+    toast.success('PDF exported successfully');
+  };
+
+  const handleExportExcel = () => {
+    if (doctorStats.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    exportYearlyStatsToExcel(doctorStats, currentYear, yearlyTotals);
+    toast.success('Excel exported successfully');
+  };
+
   return (
     <div className="space-y-4">
       {/* Year Navigation */}
@@ -157,6 +183,24 @@ const YearlyRosterView: React.FC = () => {
           <Button variant="outline" size="sm" onClick={handleCurrentYear}>
             This Year
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportPDF}>
+                <FileText className="w-4 h-4 mr-2" />
+                Export as PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportExcel}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Export as Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="ghost" size="icon" onClick={() => refetch()}>
             <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
           </Button>

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DutyBadge, DoctorAvatar } from '@/components/ui/DutyComponents';
-import { ChevronLeft, ChevronRight, RefreshCw, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, Users, Download, FileSpreadsheet, FileText } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, addMonths, subMonths } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -16,6 +16,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { exportMonthlyToPDF, exportMonthlyToExcel } from '@/lib/exportUtils';
+import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
 type DutyType = Database['public']['Enums']['duty_type'];
@@ -117,6 +125,40 @@ const MonthlyRosterView: React.FC = () => {
     return stats;
   }, [assignments]);
 
+  const handleExportPDF = () => {
+    if (assignments.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    const exportData = assignments.map(a => ({
+      doctorName: a.doctor.name,
+      unit: a.unit,
+      dutyType: a.duty_type,
+      date: format(new Date(a.duty_date), 'MMM d, yyyy'),
+      startTime: a.start_time,
+      endTime: a.end_time,
+    }));
+    exportMonthlyToPDF(exportData, format(currentDate, 'MMMM yyyy'));
+    toast.success('PDF exported successfully');
+  };
+
+  const handleExportExcel = () => {
+    if (assignments.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    const exportData = assignments.map(a => ({
+      doctorName: a.doctor.name,
+      unit: a.unit,
+      dutyType: a.duty_type,
+      date: format(new Date(a.duty_date), 'MMM d, yyyy'),
+      startTime: a.start_time,
+      endTime: a.end_time,
+    }));
+    exportMonthlyToExcel(exportData, format(currentDate, 'MMMM yyyy'));
+    toast.success('Excel exported successfully');
+  };
+
   return (
     <div className="space-y-4">
       {/* Month Navigation */}
@@ -136,6 +178,24 @@ const MonthlyRosterView: React.FC = () => {
           <Button variant="outline" size="sm" onClick={handleToday}>
             Today
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportPDF}>
+                <FileText className="w-4 h-4 mr-2" />
+                Export as PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportExcel}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Export as Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="ghost" size="icon" onClick={() => refetch()}>
             <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
           </Button>
