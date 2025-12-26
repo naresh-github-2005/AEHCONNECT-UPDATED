@@ -28,9 +28,9 @@ serve(async (req) => {
   try {
     const { doctors, leaveRequests, existingAssignments, targetDate, dutyStats, camps } = await req.json();
     
-    const GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) {
-      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     console.log("Processing scheduling request for date:", targetDate);
@@ -40,7 +40,7 @@ serve(async (req) => {
     const doctorDetails = doctors?.map((d: any) => ({
       id: d.id,
       name: d.name,
-      role: mapSeniorityToRole(d.seniority || 'resident'),
+      role: mapSeniorityToRole(d.seniority || 'resident'), // Use mapped role, not designation
       specialty: d.specialty || 'general',
       performanceScore: d.performance_score || 70,
       unit: d.unit || 'Unit 1',
@@ -62,7 +62,7 @@ serve(async (req) => {
     // Build camp info for the target date
     const campsToday = camps?.filter((c: any) => c.camp_date === targetDate) || [];
 
-    const prompt = `You are a hospital duty scheduler. Generate duty assignments as JSON only.
+    const systemPrompt = `You are a hospital duty scheduler. Generate duty assignments as JSON only.
 
 ROLE RULES:
 - consultant: OPD, OT, Ward, Emergency, Today Doctor. NO Night Duty.
@@ -71,7 +71,9 @@ ROLE RULES:
 
 DUTY TYPES: OPD, OT, Cataract OT, Retina OT, Glaucoma OT, Cornea OT, Night Duty, Ward, Today Doctor, Camp, Emergency
 
-Generate duty assignments for ${targetDate}.
+RESPOND WITH ONLY VALID JSON. NO explanations or questions.`;
+
+    const userPrompt = `Generate duty assignments for ${targetDate}.
 
 AVAILABLE DOCTORS:
 ${JSON.stringify(availableDoctors, null, 2)}
@@ -79,36 +81,73 @@ ${JSON.stringify(availableDoctors, null, 2)}
 CAMPS TODAY:
 ${JSON.stringify(campsToday, null, 2)}
 
-Create balanced assignments. Return ONLY this JSON structure (no markdown, no explanation):
+Create balanced assignments. Return ONLY this JSON structure:
 {"assignments":[{"doctorId":"id","doctorName":"name","dutyType":"type","unit":"unit","startTime":"HH:MM","endTime":"HH:MM","reason":"brief"}],"reasoning":"summary","workloadSummary":{"balanced":true,"fairnessScore":80,"concerns":[],"notes":""},"campAssignments":[],"ruleViolations":[]}`;
 
-    console.log("Sending scheduling request to Google Gemini...");
+    console.log("Sending scheduling request to AI...");
 
-    // Call Google's Gemini API directly
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "create_schedule",
+              description: "Create duty assignments for doctors",
+              parameters: {
+                type: "object",
+                properties: {
+                  assignments: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        doctorId: { type: "string" },
+                        doctorName: { type: "string" },
+                        dutyType: { type: "string" },
+                        unit: { type: "string" },
+                        startTime: { type: "string" },
+                        endTime: { type: "string" },
+                        reason: { type: "string" }
+                      },
+                      required: ["doctorId", "doctorName", "dutyType", "unit", "startTime", "endTime"]
+                    }
+                  },
+                  reasoning: { type: "string" },
+                  workloadSummary: {
+                    type: "object",
+                    properties: {
+                      balanced: { type: "boolean" },
+                      fairnessScore: { type: "number" },
+                      concerns: { type: "array", items: { type: "string" } },
+                      notes: { type: "string" }
+                    }
+                  },
+                  campAssignments: { type: "array" },
+                  ruleViolations: { type: "array", items: { type: "string" } }
+                },
+                required: ["assignments", "reasoning", "workloadSummary"]
+              }
             }
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.2,
           }
-        }),
-      }
-    );
+        ],
+        tool_choice: { type: "function", function: { name: "create_schedule" } }
+      }),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Gemini API error:", response.status, errorText);
+      console.error("AI gateway error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
@@ -116,39 +155,50 @@ Create balanced assignments. Return ONLY this JSON structure (no markdown, no ex
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       
-      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+      throw new Error(`AI gateway error: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log("Gemini response received");
+    console.log("AI response received");
     
     let result;
     
-    // Extract content from Gemini response
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (content) {
+    // First try to get tool call response
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (toolCall?.function?.arguments) {
       try {
-        // Try to parse directly (since we requested JSON response)
-        result = JSON.parse(content);
-        console.log("Parsed JSON response successfully");
+        result = JSON.parse(toolCall.function.arguments);
+        console.log("Parsed from tool call");
       } catch (e) {
-        // Try to extract JSON from content
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try {
+        console.error("Failed to parse tool call arguments:", e);
+      }
+    }
+    
+    // Fallback to content if no tool call
+    if (!result) {
+      const content = data.choices?.[0]?.message?.content;
+      if (content) {
+        try {
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
             result = JSON.parse(jsonMatch[0]);
-            console.log("Extracted and parsed JSON from content");
-          } catch (e2) {
-            console.error("Failed to parse extracted JSON:", e2);
+            console.log("Parsed from content");
           }
+        } catch (e) {
+          console.error("Failed to parse content:", e);
+          console.log("Raw content:", content?.substring(0, 500));
         }
       }
     }
     
     if (!result) {
-      console.log("Raw content:", content?.substring(0, 500));
       return new Response(JSON.stringify({ 
         error: "Failed to generate schedule. Please try again.",
         assignments: [],
@@ -157,7 +207,7 @@ Create balanced assignments. Return ONLY this JSON structure (no markdown, no ex
         campAssignments: [],
         ruleViolations: []
       }), {
-        status: 200,
+        status: 200, // Return 200 with empty result instead of 500
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
