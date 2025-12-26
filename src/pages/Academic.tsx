@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -21,7 +22,9 @@ import {
   Plus,
   Clock,
   User,
-  GraduationCap
+  GraduationCap,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -71,6 +74,8 @@ const Academic: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date(2025, 11, 1)); // December 2025
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     class_type: 'lecture' as ClassType,
@@ -83,6 +88,8 @@ const Academic: React.FC = () => {
     notes: '',
     batch: ''
   });
+
+  const isAdmin = user?.role === 'admin';
 
   // Fetch classes for the current month
   const { data: classes = [], isLoading } = useQuery({
@@ -136,6 +143,60 @@ const Academic: React.FC = () => {
     }
   });
 
+  // Update class mutation
+  const updateClassMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+      const { error } = await supabase
+        .from('classes')
+        .update({
+          title: data.title,
+          class_type: data.class_type,
+          class_date: data.class_date,
+          start_time: data.start_time,
+          end_time: data.end_time,
+          topic: data.topic || null,
+          moderator_name: data.moderator_name || null,
+          location: data.location || 'Conference Room',
+          notes: data.notes || null,
+          batch: data.batch || null
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      toast({ title: 'Success', description: 'Class updated successfully' });
+      setIsEditDialogOpen(false);
+      setEditingClass(null);
+      resetForm();
+    },
+    onError: (error) => {
+      toast({ title: 'Error', description: 'Failed to update class', variant: 'destructive' });
+      console.error(error);
+    }
+  });
+
+  // Delete class mutation
+  const deleteClassMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('classes')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      toast({ title: 'Success', description: 'Class deleted successfully' });
+    },
+    onError: (error) => {
+      toast({ title: 'Error', description: 'Failed to delete class', variant: 'destructive' });
+      console.error(error);
+    }
+  });
+
   const resetForm = () => {
     setFormData({
       title: '',
@@ -149,6 +210,32 @@ const Academic: React.FC = () => {
       notes: '',
       batch: ''
     });
+  };
+
+  const handleEdit = (classItem: ClassItem) => {
+    setEditingClass(classItem);
+    setFormData({
+      title: classItem.title,
+      class_type: classItem.class_type,
+      class_date: classItem.class_date,
+      start_time: classItem.start_time,
+      end_time: classItem.end_time,
+      topic: classItem.topic || '',
+      moderator_name: classItem.moderator_name || '',
+      location: classItem.location || 'Conference Room',
+      notes: classItem.notes || '',
+      batch: classItem.batch || ''
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClass || !formData.title || !formData.class_date) {
+      toast({ title: 'Error', description: 'Please fill in required fields', variant: 'destructive' });
+      return;
+    }
+    updateClassMutation.mutate({ id: editingClass.id, data: formData });
   };
 
   // Get days in current month
@@ -514,6 +601,46 @@ const Academic: React.FC = () => {
                           </p>
                         )}
                       </div>
+                      {isAdmin && (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleEdit(classItem)}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Class</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{classItem.title}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteClassMutation.mutate(classItem.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -560,6 +687,46 @@ const Academic: React.FC = () => {
                         </p>
                       )}
                     </div>
+                    {isAdmin && (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleEdit(classItem)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Class</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete "{classItem.title}"? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteClassMutation.mutate(classItem.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -567,6 +734,138 @@ const Academic: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        setIsEditDialogOpen(open);
+        if (!open) {
+          setEditingClass(null);
+          resetForm();
+        }
+      }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Class</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Title *</Label>
+              <Input
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="Class title"
+                required
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select
+                  value={formData.class_type}
+                  onValueChange={(value: ClassType) => setFormData({ ...formData, class_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(classTypeLabels).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Date *</Label>
+                <Input
+                  type="date"
+                  value={formData.class_date}
+                  onChange={(e) => setFormData({ ...formData, class_date: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Start Time</Label>
+                <Input
+                  type="time"
+                  value={formData.start_time}
+                  onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>End Time</Label>
+                <Input
+                  type="time"
+                  value={formData.end_time}
+                  onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Topic</Label>
+              <Input
+                value={formData.topic}
+                onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
+                placeholder="Topic details"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Moderator</Label>
+              <Input
+                value={formData.moderator_name}
+                onChange={(e) => setFormData({ ...formData, moderator_name: e.target.value })}
+                placeholder="Moderator name"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Location</Label>
+                <Input
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  placeholder="Conference Room"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Batch</Label>
+                <Input
+                  value={formData.batch}
+                  onChange={(e) => setFormData({ ...formData, batch: e.target.value })}
+                  placeholder="e.g., Batch 1"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                placeholder="Additional notes"
+                rows={2}
+              />
+            </div>
+            
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateClassMutation.isPending}>
+                {updateClassMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
