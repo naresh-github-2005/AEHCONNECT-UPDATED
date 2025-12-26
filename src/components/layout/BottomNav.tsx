@@ -24,7 +24,6 @@ const navItems: NavItem[] = [
   { icon: Calendar, label: 'Roster', path: '/roster' },
   { icon: Clock, label: 'Attendance', path: '/attendance' },
   { icon: FileText, label: 'Leave', path: '/leave' },
-  { icon: Settings, label: 'Admin', path: '/admin', adminOnly: true },
 ];
 
 export const BottomNav: React.FC = () => {
