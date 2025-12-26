@@ -3,13 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { DutyBadge, PhoneButton, DoctorAvatar } from '@/components/ui/DutyComponents';
-import { Search, Filter, X, ArrowLeftRight, RefreshCw, Wifi, Calendar, Clock, MapPin, MoreVertical } from 'lucide-react';
+import { Search, Filter, X, ArrowLeftRight, RefreshCw, Wifi, Calendar, Clock, MapPin, MoreVertical, CalendarDays, CalendarRange } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useRealtimeDutyAssignments, DutyWithDoctor } from '@/hooks/useRealtimeData';
 import { useAuth } from '@/contexts/AuthContext';
 import { SwapRequestDialog } from '@/components/roster/SwapRequestDialog';
 import { SwapRequestsList } from '@/components/roster/SwapRequestsList';
+import MonthlyRosterView from '@/components/roster/MonthlyRosterView';
+import YearlyRosterView from '@/components/roster/YearlyRosterView';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -27,14 +29,18 @@ import {
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { Database } from '@/integrations/supabase/types';
 
 type DutyType = Database['public']['Enums']['duty_type'];
 
 const dutyTypes: DutyType[] = ['OPD', 'OT', 'Night Duty', 'Ward', 'Camp'];
 
+type ViewType = 'daily' | 'monthly' | 'yearly';
+
 const Roster: React.FC = () => {
   const { user } = useAuth();
+  const [activeView, setActiveView] = useState<ViewType>('daily');
   const today = format(new Date(), 'yyyy-MM-dd');
   const { assignments, isLoading, refetch } = useRealtimeDutyAssignments(today);
   
@@ -68,24 +74,47 @@ const Roster: React.FC = () => {
       {/* Header */}
       <div className="animate-fade-in flex items-start justify-between">
         <div>
-          <h2 className="text-title text-foreground">Daily Roster</h2>
+          <h2 className="text-title text-foreground">Duty Roster</h2>
           <p className="text-caption text-muted-foreground">
             {format(new Date(), 'EEEE, MMMM d, yyyy')}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-xs text-green-600">
-            <Wifi className="w-3 h-3" />
-            <span>Live</span>
-          </div>
-          <Button variant="ghost" size="sm" onClick={refetch}>
-            <RefreshCw className="w-4 h-4" />
-          </Button>
+          {activeView === 'daily' && (
+            <>
+              <div className="flex items-center gap-1 text-xs text-green-600">
+                <Wifi className="w-3 h-3" />
+                <span>Live</span>
+              </div>
+              <Button variant="ghost" size="sm" onClick={refetch}>
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Swap Requests */}
-      <SwapRequestsList />
+      {/* View Tabs */}
+      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as ViewType)} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="daily" className="gap-1.5">
+            <Calendar className="w-4 h-4" />
+            <span className="hidden sm:inline">Daily</span>
+          </TabsTrigger>
+          <TabsTrigger value="monthly" className="gap-1.5">
+            <CalendarDays className="w-4 h-4" />
+            <span className="hidden sm:inline">Monthly</span>
+          </TabsTrigger>
+          <TabsTrigger value="yearly" className="gap-1.5">
+            <CalendarRange className="w-4 h-4" />
+            <span className="hidden sm:inline">Yearly</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Daily View Content */}
+        <TabsContent value="daily" className="space-y-4 mt-4">
+          {/* Swap Requests */}
+          <SwapRequestsList />
 
       {/* My Duties Section (for doctors) */}
       {user?.role === 'doctor' && (
@@ -318,6 +347,18 @@ const Roster: React.FC = () => {
           myAssignment={selectedAssignment}
         />
       )}
+        </TabsContent>
+
+        {/* Monthly View Content */}
+        <TabsContent value="monthly" className="mt-4">
+          <MonthlyRosterView />
+        </TabsContent>
+
+        {/* Yearly View Content */}
+        <TabsContent value="yearly" className="mt-4">
+          <YearlyRosterView />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
