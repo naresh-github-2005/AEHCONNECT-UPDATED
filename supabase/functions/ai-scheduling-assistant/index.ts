@@ -5,21 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Map seniority to role for clear duty rules
-function mapSeniorityToRole(seniority: string): string {
-  switch (seniority) {
-    case 'consultant':
-    case 'senior_consultant':
-      return 'consultant';
-    case 'fellow':
-      return 'fellow';
-    case 'resident':
-    case 'intern':
-    default:
-      return 'pg';
-  }
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -33,58 +18,168 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log("Processing scheduling request for date:", targetDate);
+    console.log("Processing advanced scheduling request for date:", targetDate);
     console.log("Doctors count:", doctors?.length);
+    console.log("Leave requests count:", leaveRequests?.length);
+    console.log("Duty stats count:", dutyStats?.length);
+    console.log("Camps count:", camps?.length);
 
-    // Map doctors with correct role based on seniority
+    const systemPrompt = `You are an intelligent hospital duty scheduling assistant for an eye hospital (Aravind Eye Hospital model). Your role is to create OPTIMAL and FAIR duty assignments based on REAL hospital patterns.
+
+## CRITICAL: FIELD USAGE CLARIFICATION
+- USE THE "seniority" FIELD to determine doctor roles (consultant, fellow, resident, intern)
+- The "designation" field may have default values - IGNORE IT
+- Map seniority to role: consultant→Consultant, senior_consultant→Consultant, fellow→Fellow, resident→PG, intern→PG
+
+## ROLE-BASED DUTY RULES (STRICT ENFORCEMENT - THESE ARE HARD CONSTRAINTS)
+
+### PG STUDENT (seniority: "resident" or "intern")
+✅ ALLOWED DUTIES: Camp, Night Duty, OPD, Ward, Emergency
+❌ RESTRICTED (NEVER ASSIGN INDEPENDENTLY): OT, Cataract OT, Retina OT, Glaucoma OT, Cornea OT, Today Doctor
+HARD RULES:
+- NO Independent OT - PGs can only assist under supervision
+- Night Duty rotation is mandatory
+
+### FELLOW (seniority: "fellow")
+✅ ALLOWED DUTIES: All duties including Camp, Night Duty, Ward, OPD, OT, Emergency, all specialty OTs, Today Doctor
+MANDATORY OT REQUIREMENTS:
+- Each Fellow MUST have: 1 Cataract OT turn + 1 Specialty OT turn
+- EXCEPTION - IOL Fellow (specialty: "cataract"): 2 Cataract OT turns required
+- EXCEPTION - Retina Fellow (specialty: "retina"): 2 Retina OT turns required
+
+### CONSULTANT (seniority: "consultant" or "senior_consultant")
+✅ ALLOWED DUTIES: All duties except Night Duty
+❌ RESTRICTED: Night Duty
+ROLE: Senior supervisory and coordination, Today Doctor, can supervise juniors
+
+## SENIORITY HIERARCHY (determines overall eligibility)
+- consultant/senior_consultant: Senior-most, leadership roles, Today Doctor, NO night duty
+- fellow: Full OT access, learning advanced procedures, night duty allowed
+- resident/intern (PG): OPD-heavy, ward rounds, night duty, NO independent OT
+
+## SPECIALTY MATCHING (for OT assignments)
+- cataract: High-volume cataract surgeries
+- retina: Retinal surgeries, laser procedures
+- glaucoma: Glaucoma surgeries
+- cornea: Corneal procedures, transplants
+- oculoplasty: Eyelid, orbit surgeries
+- pediatric: Children's eye care
+- general: OPD, screening, basic procedures
+
+## FAIRNESS RULES
+1. Max night duties per week: 2
+2. Avoid same duty 2 days in a row for same doctor
+3. Rotate night duty among resident/fellow doctors (NOT consultant)
+4. Respect fixed_off_days
+5. Consider health_constraints
+
+## CRITICAL OUTPUT INSTRUCTIONS
+You MUST respond with ONLY a valid JSON object. No explanations, no questions, no text before or after the JSON.
+If data seems inconsistent, make reasonable assumptions and proceed with the schedule.
+
+REQUIRED JSON FORMAT:
+{
+  "assignments": [
+    {
+      "doctorId": "uuid",
+      "doctorName": "name",
+      "designation": "pg|fellow|consultant",
+      "specialty": "specialty",
+      "performanceScore": 70,
+      "dutyType": "OPD|Cataract OT|Retina OT|Glaucoma OT|Cornea OT|Night Duty|Ward|Today Doctor|Camp|Emergency",
+      "unit": "OT-1|OT-2|OPD-1|OPD-2|Emergency|Ward-A",
+      "startTime": "HH:MM",
+      "endTime": "HH:MM",
+      "reason": "brief explanation"
+    }
+  ],
+  "reasoning": "overall explanation",
+  "workloadSummary": {
+    "balanced": true,
+    "fairnessScore": 80,
+    "concerns": [],
+    "notes": ""
+  },
+  "campAssignments": [],
+  "ruleViolations": []
+}`;
+
+    // Build detailed doctor info with constraints and performance data
     const doctorDetails = doctors?.map((d: any) => ({
       id: d.id,
       name: d.name,
-      role: mapSeniorityToRole(d.seniority || 'resident'), // Use mapped role, not designation
+      department: d.department,
+      designation: d.designation || 'pg',
+      seniority: d.seniority || 'resident',
       specialty: d.specialty || 'general',
       performanceScore: d.performance_score || 70,
+      eligibleDuties: d.eligible_duties || [],
       unit: d.unit || 'Unit 1',
-      canDoNight: d.can_do_night !== false,
-      canDoCamp: d.can_do_camp === true,
+      maxNightDutiesPerMonth: d.max_night_duties_per_month || 8,
+      maxHoursPerWeek: d.max_hours_per_week || 48,
+      fixedOffDays: d.fixed_off_days || [],
+      healthConstraints: d.health_constraints || null,
+      capabilities: {
+        canDoOpd: d.can_do_opd !== false,
+        canDoOt: d.can_do_ot !== false,
+        canDoWard: d.can_do_ward !== false,
+        canDoCamp: d.can_do_camp === true,
+        canDoNight: d.can_do_night !== false
+      }
     })) || [];
 
-    // Filter out doctors on approved leave
-    const approvedLeaveIds = new Set(
-      leaveRequests
-        ?.filter((l: any) => (l.status === 'approved' || l.status === 'Approved'))
-        ?.map((l: any) => l.doctor_id) || []
-    );
-    
-    const availableDoctors = doctorDetails.filter((d: any) => !approvedLeaveIds.has(d.id));
-    
-    console.log("Available doctors after leave filter:", availableDoctors.length);
+    // Build duty stats context
+    const statsContext = dutyStats?.map((s: any) => ({
+      doctorId: s.doctor_id,
+      month: s.month,
+      year: s.year,
+      nightDutyCount: s.night_duty_count,
+      weekendDutyCount: s.weekend_duty_count,
+      totalHours: s.total_hours,
+      campCount: s.camp_count
+    })) || [];
 
-    // Build camp info for the target date
-    const campsToday = camps?.filter((c: any) => c.camp_date === targetDate) || [];
+    // Build camp info
+    const campDetails = camps?.map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      location: c.location,
+      date: c.camp_date,
+      startTime: c.start_time,
+      endTime: c.end_time,
+      requiredDoctors: c.required_doctors,
+      specialtyRequired: c.specialty_required,
+      notes: c.notes
+    })) || [];
 
-    const systemPrompt = `You are a hospital duty scheduler. Generate duty assignments as JSON only.
+    const userPrompt = `Create optimal duty assignments for ${targetDate}.
 
-ROLE RULES:
-- consultant: OPD, OT, Ward, Emergency, Today Doctor. NO Night Duty.
-- fellow: All duties including Night Duty, OT, specialty OTs.
-- pg: OPD, Ward, Night Duty, Emergency. NO OT duties, NO Today Doctor.
+## AVAILABLE DOCTORS (with constraints)
+${JSON.stringify(doctorDetails, null, 2)}
 
-DUTY TYPES: OPD, OT, Cataract OT, Retina OT, Glaucoma OT, Cornea OT, Night Duty, Ward, Today Doctor, Camp, Emergency
+## LEAVE REQUESTS (doctors unavailable on ${targetDate})
+${JSON.stringify(leaveRequests?.filter((l: any) => l.status === 'approved' || l.status === 'Approved') || [], null, 2)}
 
-RESPOND WITH ONLY VALID JSON. NO explanations or questions.`;
+## CURRENT MONTH DUTY STATISTICS (for fairness tracking)
+${JSON.stringify(statsContext, null, 2)}
 
-    const userPrompt = `Generate duty assignments for ${targetDate}.
+## SCHEDULED CAMPS ON ${targetDate}
+${JSON.stringify(campDetails.filter((c: any) => c.date === targetDate), null, 2)}
 
-AVAILABLE DOCTORS:
-${JSON.stringify(availableDoctors, null, 2)}
+## RECENT ASSIGNMENTS (for context on workload patterns)
+${JSON.stringify(existingAssignments?.slice(0, 30) || [], null, 2)}
 
-CAMPS TODAY:
-${JSON.stringify(campsToday, null, 2)}
+## TASK
+1. First, assign doctors to any camps scheduled for this date
+2. Then, create a balanced schedule for remaining doctors
+3. Ensure Emergency coverage (24/7 requirement)
+4. Match specialties to appropriate units where possible
+5. Respect all constraints (seniority, capabilities, limits)
+6. Maximize fairness in duty distribution
 
-Create balanced assignments. Return ONLY this JSON structure:
-{"assignments":[{"doctorId":"id","doctorName":"name","dutyType":"type","unit":"unit","startTime":"HH:MM","endTime":"HH:MM","reason":"brief"}],"reasoning":"summary","workloadSummary":{"balanced":true,"fairnessScore":80,"concerns":[],"notes":""},"campAssignments":[],"ruleViolations":[]}`;
+Create assignments that are FAIR, SAFE, and OPTIMAL for patient care.`;
 
-    console.log("Sending scheduling request to AI...");
+    console.log("Sending advanced scheduling request to AI...");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -98,50 +193,6 @@ Create balanced assignments. Return ONLY this JSON structure:
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "create_schedule",
-              description: "Create duty assignments for doctors",
-              parameters: {
-                type: "object",
-                properties: {
-                  assignments: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        doctorId: { type: "string" },
-                        doctorName: { type: "string" },
-                        dutyType: { type: "string" },
-                        unit: { type: "string" },
-                        startTime: { type: "string" },
-                        endTime: { type: "string" },
-                        reason: { type: "string" }
-                      },
-                      required: ["doctorId", "doctorName", "dutyType", "unit", "startTime", "endTime"]
-                    }
-                  },
-                  reasoning: { type: "string" },
-                  workloadSummary: {
-                    type: "object",
-                    properties: {
-                      balanced: { type: "boolean" },
-                      fairnessScore: { type: "number" },
-                      concerns: { type: "array", items: { type: "string" } },
-                      notes: { type: "string" }
-                    }
-                  },
-                  campAssignments: { type: "array" },
-                  ruleViolations: { type: "array", items: { type: "string" } }
-                },
-                required: ["assignments", "reasoning", "workloadSummary"]
-              }
-            }
-          }
-        ],
-        tool_choice: { type: "function", function: { name: "create_schedule" } }
       }),
     });
 
@@ -166,60 +217,37 @@ Create balanced assignments. Return ONLY this JSON structure:
     }
 
     const data = await response.json();
-    console.log("AI response received");
+    const content = data.choices?.[0]?.message?.content;
     
+    console.log("AI response received, parsing...");
+
+    // Extract JSON from the response
     let result;
-    
-    // First try to get tool call response
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (toolCall?.function?.arguments) {
-      try {
-        result = JSON.parse(toolCall.function.arguments);
-        console.log("Parsed from tool call");
-      } catch (e) {
-        console.error("Failed to parse tool call arguments:", e);
+    try {
+      // Try to find JSON in the response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("No JSON found in response");
       }
-    }
-    
-    // Fallback to content if no tool call
-    if (!result) {
-      const content = data.choices?.[0]?.message?.content;
-      if (content) {
-        try {
-          const jsonMatch = content.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            result = JSON.parse(jsonMatch[0]);
-            console.log("Parsed from content");
-          }
-        } catch (e) {
-          console.error("Failed to parse content:", e);
-          console.log("Raw content:", content?.substring(0, 500));
-        }
-      }
-    }
-    
-    if (!result) {
+    } catch (parseError) {
+      console.error("Failed to parse AI response:", parseError);
+      console.log("Raw content:", content);
+      
+      // Return a structured error with the raw content
       return new Response(JSON.stringify({ 
-        error: "Failed to generate schedule. Please try again.",
-        assignments: [],
-        reasoning: "AI response could not be parsed",
-        workloadSummary: { balanced: false, fairnessScore: 0, concerns: ["Parse error"], notes: "" },
-        campAssignments: [],
-        ruleViolations: []
+        error: "Failed to parse AI response",
+        rawContent: content 
       }), {
-        status: 200, // Return 200 with empty result instead of 500
+        status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Ensure result has all required fields
-    result.assignments = result.assignments || [];
-    result.campAssignments = result.campAssignments || [];
-    result.ruleViolations = result.ruleViolations || [];
-    result.workloadSummary = result.workloadSummary || { balanced: true, fairnessScore: 70, concerns: [], notes: "" };
-
-    console.log("Successfully generated scheduling suggestions");
+    console.log("Successfully generated advanced scheduling suggestions");
     console.log("Assignments count:", result.assignments?.length);
+    console.log("Camp assignments:", result.campAssignments?.length || 0);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -228,12 +256,7 @@ Create balanced assignments. Return ONLY this JSON structure:
   } catch (error) {
     console.error("Error in ai-scheduling-assistant:", error);
     return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : "Unknown error",
-      assignments: [],
-      reasoning: "",
-      workloadSummary: { balanced: false, fairnessScore: 0, concerns: [], notes: "" },
-      campAssignments: [],
-      ruleViolations: []
+      error: error instanceof Error ? error.message : "Unknown error" 
     }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
