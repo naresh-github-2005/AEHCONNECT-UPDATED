@@ -35,12 +35,9 @@ const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
   const { 
     dutyAssignments, 
-    activityLog, 
-    generateRoster, 
-    lastUpdated 
+    activityLog
   } = useData();
   const { toast } = useToast();
-  const [isGenerating, setIsGenerating] = useState(false);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
@@ -81,17 +78,6 @@ const AdminDashboard: React.FC = () => {
   }, []);
 
   const pendingLeaves = leaveRequests.filter((l) => l.status === 'pending');
-
-  const handleGenerateRoster = async () => {
-    setIsGenerating(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    generateRoster();
-    toast({
-      title: 'Roster Generated',
-      description: 'Today\'s duty roster has been successfully generated.',
-    });
-    setIsGenerating(false);
-  };
 
   const handleApproveLeave = async (leaveId: string) => {
     setProcessingId(leaveId);
@@ -201,46 +187,6 @@ const AdminDashboard: React.FC = () => {
         <AISchedulingAssistant />
         <MonthlyRosterGenerator />
       </div>
-
-      {/* Generate Roster Card */}
-      <Card className="shadow-card bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20 animate-slide-up">
-        <CardContent className="py-6">
-          <div className="flex flex-col items-center text-center space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-subtitle font-semibold text-foreground">
-                Daily Roster Generation
-              </h3>
-              <p className="text-caption text-muted-foreground mt-1">
-                Generate optimized duty assignments for today
-              </p>
-            </div>
-            <Button
-              onClick={handleGenerateRoster}
-              disabled={isGenerating}
-              size="lg"
-              className="w-full max-w-xs h-12"
-            >
-              {isGenerating ? (
-                <>
-                  <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5 mr-2" />
-                  Generate Today's Roster
-                </>
-              )}
-            </Button>
-            <p className="text-tiny text-muted-foreground">
-              Last generated: {format(lastUpdated, 'h:mm a')}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 gap-3 animate-slide-up stagger-1">
