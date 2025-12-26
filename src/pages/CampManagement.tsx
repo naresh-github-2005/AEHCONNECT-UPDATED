@@ -334,14 +334,14 @@ const CampManagement: React.FC = () => {
               <div>
                 <Label>Specialty Required</Label>
                 <Select
-                  value={formData.specialty_required}
-                  onValueChange={(value) => setFormData({ ...formData, specialty_required: value as MedicalSpecialty })}
+                  value={formData.specialty_required || "any"}
+                  onValueChange={(value) => setFormData({ ...formData, specialty_required: value === "any" ? "" : value as MedicalSpecialty })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Any specialty" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Any specialty</SelectItem>
+                    <SelectItem value="any">Any specialty</SelectItem>
                     {Object.entries(specialtyLabels).map(([key, label]) => (
                       <SelectItem key={key} value={key}>{label}</SelectItem>
                     ))}
