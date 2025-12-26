@@ -54,7 +54,8 @@ export const useRealtimeDutyAssignments = (date?: string) => {
   useEffect(() => {
     fetchAssignments();
 
-    const channel = supabase
+    // Subscribe to duty assignment changes
+    const dutyChannel = supabase
       .channel('duty-assignments-changes')
       .on(
         'postgres_changes',
@@ -70,8 +71,45 @@ export const useRealtimeDutyAssignments = (date?: string) => {
       )
       .subscribe();
 
+    // Subscribe to leave request changes (approved leaves may affect roster)
+    const leaveChannel = supabase
+      .channel('leave-requests-for-roster')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'leave_requests'
+        },
+        (payload) => {
+          console.log('Leave request updated:', payload);
+          // Refetch when leaves are approved/rejected as it may affect availability
+          fetchAssignments();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to camp changes (new camps may require roster adjustments)
+    const campChannel = supabase
+      .channel('camps-for-roster')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'camps'
+        },
+        (payload) => {
+          console.log('Camp change:', payload);
+          fetchAssignments();
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(dutyChannel);
+      supabase.removeChannel(leaveChannel);
+      supabase.removeChannel(campChannel);
     };
   }, [fetchAssignments]);
 
