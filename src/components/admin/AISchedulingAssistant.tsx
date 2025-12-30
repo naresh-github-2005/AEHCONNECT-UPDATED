@@ -169,6 +169,13 @@ const AISchedulingAssistant: React.FC = () => {
     setSuggestion(null);
 
     try {
+      // Get current user session for authorization
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        toast.error('You must be logged in to generate suggestions');
+        return;
+      }
+
       // Filter leave requests for target date
       const relevantLeaves = leaveRequests.filter(l => {
         const start = new Date(l.start_date);
@@ -183,7 +190,7 @@ const AISchedulingAssistant: React.FC = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             doctors: dbDoctors,

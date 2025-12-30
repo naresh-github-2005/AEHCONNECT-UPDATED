@@ -84,6 +84,13 @@ const MonthlyRosterGenerator: React.FC = () => {
       return;
     }
 
+    // Get current user session for authorization
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
+      toast.error('You must be logged in to generate roster');
+      return;
+    }
+
     setIsGenerating(true);
     setProgress({ current: 0, total: daysInMonth.length, currentDate: '', status: 'generating' });
 
@@ -149,7 +156,7 @@ const MonthlyRosterGenerator: React.FC = () => {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                Authorization: `Bearer ${session.access_token}`,
               },
               body: JSON.stringify({
                 doctors: dbDoctors,
