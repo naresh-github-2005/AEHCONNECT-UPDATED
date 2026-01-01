@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { 
   Users, Search, Edit2, Save, X, Loader2, Shield, 
-  Moon, Tent, Activity, Clock, Heart
+  Moon, Tent, Activity, Clock, Heart, CalendarDays
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -47,6 +47,18 @@ interface Doctor {
   can_do_camp: boolean;
   can_do_night: boolean;
   is_active: boolean;
+  // Leave limits
+  max_casual_leaves: number;
+  max_medical_leaves: number;
+  max_emergency_leaves: number;
+  max_annual_leaves: number;
+}
+
+interface LeaveSummary {
+  leave_type: string;
+  max_leaves: number;
+  leaves_taken: number;
+  leaves_remaining: number;
 }
 
 const seniorityLabels: Record<SeniorityLevel, string> = {
@@ -97,10 +109,84 @@ const DoctorProfiles: React.FC = () => {
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [leaveSummary, setLeaveSummary] = useState<LeaveSummary[]>([]);
 
   useEffect(() => {
     fetchDoctors();
   }, []);
+
+  // Fetch leave summary when a doctor is selected
+  useEffect(() => {
+    if (selectedDoctor) {
+      fetchLeaveSummary(selectedDoctor.id);
+    }
+  }, [selectedDoctor?.id]);
+
+  const fetchLeaveSummary = async (doctorId: string) => {
+    const currentYear = new Date().getFullYear();
+    
+    // Calculate leaves taken from approved leave requests
+    const { data: leaveData } = await supabase
+      .from('leave_requests')
+      .select('leave_type, start_date, end_date')
+      .eq('doctor_id', doctorId)
+      .eq('status', 'approved');
+
+    const leavesTaken: Record<string, number> = {
+      Casual: 0,
+      Medical: 0,
+      Emergency: 0,
+      Annual: 0,
+    };
+
+    if (leaveData) {
+      leaveData.forEach((leave) => {
+        const startYear = new Date(leave.start_date).getFullYear();
+        if (startYear === currentYear) {
+          const days = Math.ceil(
+            (new Date(leave.end_date).getTime() - new Date(leave.start_date).getTime()) / (1000 * 60 * 60 * 24)
+          ) + 1;
+          leavesTaken[leave.leave_type] = (leavesTaken[leave.leave_type] || 0) + days;
+        }
+      });
+    }
+
+    // Get doctor's leave limits
+    const { data: doctor } = await supabase
+      .from('doctors')
+      .select('max_casual_leaves, max_medical_leaves, max_emergency_leaves, max_annual_leaves')
+      .eq('id', doctorId)
+      .single();
+
+    if (doctor) {
+      setLeaveSummary([
+        {
+          leave_type: 'Casual',
+          max_leaves: doctor.max_casual_leaves || 12,
+          leaves_taken: leavesTaken.Casual,
+          leaves_remaining: Math.max(0, (doctor.max_casual_leaves || 12) - leavesTaken.Casual),
+        },
+        {
+          leave_type: 'Medical',
+          max_leaves: doctor.max_medical_leaves || 15,
+          leaves_taken: leavesTaken.Medical,
+          leaves_remaining: Math.max(0, (doctor.max_medical_leaves || 15) - leavesTaken.Medical),
+        },
+        {
+          leave_type: 'Emergency',
+          max_leaves: doctor.max_emergency_leaves || 5,
+          leaves_taken: leavesTaken.Emergency,
+          leaves_remaining: Math.max(0, (doctor.max_emergency_leaves || 5) - leavesTaken.Emergency),
+        },
+        {
+          leave_type: 'Annual',
+          max_leaves: doctor.max_annual_leaves || 20,
+          leaves_taken: leavesTaken.Annual,
+          leaves_remaining: Math.max(0, (doctor.max_annual_leaves || 20) - leavesTaken.Annual),
+        },
+      ]);
+    }
+  };
 
   const fetchDoctors = async () => {
     setIsLoading(true);
@@ -138,6 +224,11 @@ const DoctorProfiles: React.FC = () => {
         can_do_camp: selectedDoctor.can_do_camp,
         can_do_night: selectedDoctor.can_do_night,
         is_active: selectedDoctor.is_active,
+        // Leave limits
+        max_casual_leaves: selectedDoctor.max_casual_leaves || 12,
+        max_medical_leaves: selectedDoctor.max_medical_leaves || 15,
+        max_emergency_leaves: selectedDoctor.max_emergency_leaves || 5,
+        max_annual_leaves: selectedDoctor.max_annual_leaves || 20,
       })
       .eq('id', selectedDoctor.id);
     
@@ -388,6 +479,77 @@ const DoctorProfiles: React.FC = () => {
                   onChange={(e) => setSelectedDoctor({ ...selectedDoctor, health_constraints: e.target.value || null })}
                   placeholder="e.g., No night duties due to health condition"
                 />
+              </div>
+
+              {/* Leave Limits Section */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-1.5">
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  Leave Limits (Per Year)
+                </Label>
+                
+                {/* Leave Summary Display */}
+                {leaveSummary.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg">
+                    {leaveSummary.map((summary) => (
+                      <div key={summary.leave_type} className="text-center p-2 rounded bg-background">
+                        <p className="text-tiny text-muted-foreground">{summary.leave_type}</p>
+                        <p className="text-sm font-medium">
+                          <span className={summary.leaves_remaining <= 2 ? 'text-destructive' : 'text-success'}>
+                            {summary.leaves_remaining}
+                          </span>
+                          <span className="text-muted-foreground">/{summary.max_leaves}</span>
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {summary.leaves_taken} taken
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Casual Leaves</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={30}
+                      value={selectedDoctor.max_casual_leaves || 12}
+                      onChange={(e) => setSelectedDoctor({ ...selectedDoctor, max_casual_leaves: parseInt(e.target.value) || 12 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Medical Leaves</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={30}
+                      value={selectedDoctor.max_medical_leaves || 15}
+                      onChange={(e) => setSelectedDoctor({ ...selectedDoctor, max_medical_leaves: parseInt(e.target.value) || 15 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Emergency Leaves</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={15}
+                      value={selectedDoctor.max_emergency_leaves || 5}
+                      onChange={(e) => setSelectedDoctor({ ...selectedDoctor, max_emergency_leaves: parseInt(e.target.value) || 5 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Annual Leaves</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={45}
+                      value={selectedDoctor.max_annual_leaves || 20}
+                      onChange={(e) => setSelectedDoctor({ ...selectedDoctor, max_annual_leaves: parseInt(e.target.value) || 20 })}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-3">

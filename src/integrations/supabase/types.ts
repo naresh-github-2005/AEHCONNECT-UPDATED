@@ -501,6 +501,10 @@ export type Database = {
           is_active: boolean | null
           max_hours_per_week: number
           max_night_duties_per_month: number
+          max_casual_leaves: number
+          max_medical_leaves: number
+          max_emergency_leaves: number
+          max_annual_leaves: number
           name: string
           performance_score: number | null
           phone: string
@@ -527,6 +531,10 @@ export type Database = {
           is_active?: boolean | null
           max_hours_per_week?: number
           max_night_duties_per_month?: number
+          max_casual_leaves?: number
+          max_medical_leaves?: number
+          max_emergency_leaves?: number
+          max_annual_leaves?: number
           name: string
           performance_score?: number | null
           phone: string
@@ -553,6 +561,10 @@ export type Database = {
           is_active?: boolean | null
           max_hours_per_week?: number
           max_night_duties_per_month?: number
+          max_casual_leaves?: number
+          max_medical_leaves?: number
+          max_emergency_leaves?: number
+          max_annual_leaves?: number
           name?: string
           performance_score?: number | null
           phone?: string

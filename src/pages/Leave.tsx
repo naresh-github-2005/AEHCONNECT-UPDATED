@@ -17,6 +17,17 @@ type LeaveRequest = Tables<'leave_requests'> & {
 };
 type LeaveType = 'Casual' | 'Emergency' | 'Medical' | 'Annual';
 
+interface LeaveBalance {
+  casualTaken: number;
+  medicalTaken: number;
+  emergencyTaken: number;
+  annualTaken: number;
+  maxCasual: number;
+  maxMedical: number;
+  maxEmergency: number;
+  maxAnnual: number;
+}
+
 const leaveTypes: LeaveType[] = ['Casual', 'Emergency', 'Medical', 'Annual'];
 
 const Leave: React.FC = () => {
@@ -30,6 +41,7 @@ const Leave: React.FC = () => {
   const [selectedLeaveType, setSelectedLeaveType] = useState<LeaveType | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
 
   const isAdmin = user?.role === 'admin';
 
@@ -51,6 +63,64 @@ const Leave: React.FC = () => {
     
     fetchDoctorId();
   }, [user, isAdmin]);
+
+  // Fetch leave balance for doctor (limits and taken)
+  useEffect(() => {
+    const fetchLeaveBalance = async () => {
+      if (!doctorId || isAdmin) return;
+
+      // Get doctor's leave limits
+      const { data: doctorData } = await supabase
+        .from('doctors')
+        .select('max_casual_leaves, max_medical_leaves, max_emergency_leaves, max_annual_leaves')
+        .eq('id', doctorId)
+        .maybeSingle();
+
+      // Get approved leave requests for this year
+      const currentYear = new Date().getFullYear();
+      const { data: approvedLeaves } = await supabase
+        .from('leave_requests')
+        .select('leave_type, start_date, end_date')
+        .eq('doctor_id', doctorId)
+        .eq('status', 'approved')
+        .gte('start_date', `${currentYear}-01-01`)
+        .lte('end_date', `${currentYear}-12-31`);
+
+      // Calculate days taken per leave type
+      const summary = {
+        casualTaken: 0,
+        medicalTaken: 0,
+        emergencyTaken: 0,
+        annualTaken: 0,
+        maxCasual: doctorData?.max_casual_leaves ?? 12,
+        maxMedical: doctorData?.max_medical_leaves ?? 12,
+        maxEmergency: doctorData?.max_emergency_leaves ?? 6,
+        maxAnnual: doctorData?.max_annual_leaves ?? 30,
+      };
+
+      (approvedLeaves || []).forEach((leave) => {
+        const days = differenceInDays(new Date(leave.end_date), new Date(leave.start_date)) + 1;
+        switch (leave.leave_type) {
+          case 'Casual':
+            summary.casualTaken += days;
+            break;
+          case 'Medical':
+            summary.medicalTaken += days;
+            break;
+          case 'Emergency':
+            summary.emergencyTaken += days;
+            break;
+          case 'Annual':
+            summary.annualTaken += days;
+            break;
+        }
+      });
+
+      setLeaveBalance(summary);
+    };
+
+    fetchLeaveBalance();
+  }, [doctorId, isAdmin, leaveRequests]);
 
   // Fetch leave requests with real-time updates
   useEffect(() => {
@@ -116,6 +186,42 @@ const Leave: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!startDate || !endDate || !selectedLeaveType || !doctorId) return;
+
+    // Validate against remaining leaves
+    if (leaveBalance) {
+      const requestedDays = differenceInDays(endDate, startDate) + 1;
+      let taken = 0;
+      let max = 0;
+
+      switch (selectedLeaveType) {
+        case 'Casual':
+          taken = leaveBalance.casualTaken;
+          max = leaveBalance.maxCasual;
+          break;
+        case 'Medical':
+          taken = leaveBalance.medicalTaken;
+          max = leaveBalance.maxMedical;
+          break;
+        case 'Emergency':
+          taken = leaveBalance.emergencyTaken;
+          max = leaveBalance.maxEmergency;
+          break;
+        case 'Annual':
+          taken = leaveBalance.annualTaken;
+          max = leaveBalance.maxAnnual;
+          break;
+      }
+
+      const remaining = max - taken;
+      if (requestedDays > remaining) {
+        toast({
+          title: 'Insufficient Leave Balance',
+          description: `You have only ${remaining} ${selectedLeaveType.toLowerCase()} leave day(s) remaining. Requesting ${requestedDays} day(s).`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
 
     setIsSubmitting(true);
 
@@ -402,6 +508,57 @@ const Leave: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Leave Balance Section */}
+      {leaveBalance && (
+        <Card className="shadow-card animate-slide-up">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-subtitle flex items-center gap-2">
+              <CalendarDays className="w-5 h-5" />
+              Leave Balance ({new Date().getFullYear()})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                <p className="text-tiny font-medium text-blue-600 dark:text-blue-400 mb-1">Casual</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-bold text-foreground">{leaveBalance.maxCasual - leaveBalance.casualTaken}</span>
+                  <span className="text-tiny text-muted-foreground">/ {leaveBalance.maxCasual} remaining</span>
+                </div>
+                <p className="text-tiny text-muted-foreground mt-1">{leaveBalance.casualTaken} taken</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                <p className="text-tiny font-medium text-green-600 dark:text-green-400 mb-1">Medical</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-bold text-foreground">{leaveBalance.maxMedical - leaveBalance.medicalTaken}</span>
+                  <span className="text-tiny text-muted-foreground">/ {leaveBalance.maxMedical} remaining</span>
+                </div>
+                <p className="text-tiny text-muted-foreground mt-1">{leaveBalance.medicalTaken} taken</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
+                <p className="text-tiny font-medium text-orange-600 dark:text-orange-400 mb-1">Emergency</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-bold text-foreground">{leaveBalance.maxEmergency - leaveBalance.emergencyTaken}</span>
+                  <span className="text-tiny text-muted-foreground">/ {leaveBalance.maxEmergency} remaining</span>
+                </div>
+                <p className="text-tiny text-muted-foreground mt-1">{leaveBalance.emergencyTaken} taken</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800">
+                <p className="text-tiny font-medium text-purple-600 dark:text-purple-400 mb-1">Annual</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-bold text-foreground">{leaveBalance.maxAnnual - leaveBalance.annualTaken}</span>
+                  <span className="text-tiny text-muted-foreground">/ {leaveBalance.maxAnnual} remaining</span>
+                </div>
+                <p className="text-tiny text-muted-foreground mt-1">{leaveBalance.annualTaken} taken</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Leave Form */}
       <Card className="shadow-card animate-slide-up stagger-1">
