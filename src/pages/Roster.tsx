@@ -34,7 +34,46 @@ import type { Database } from '@/integrations/supabase/types';
 
 type DutyType = Database['public']['Enums']['duty_type'];
 
-const dutyTypes: DutyType[] = ['OPD', 'OT', 'Night Duty', 'Ward', 'Camp'];
+// Extended filter configuration with sub-filters
+const filterConfig = {
+  OPD: {
+    label: 'OPD',
+    units: ['Unit 1', 'Unit 2', 'Unit 3', 'Unit 4', 'Free Unit', 'Cornea', 'Retina', 'Glaucoma', 'Neuro-Ophthalmology', 'IOL', 'UVEA', 'ORBIT', 'Pediatric']
+  },
+  OT: {
+    label: 'OT',
+    specialty: ['Cataract OT', 'Cornea OT', 'Retina OT', 'Glaucoma OT', 'Neuro OT', 'ORBIT OT', 'Pediatrics OT', 'IOL OT']
+  },
+  Ward: {
+    label: 'Ward',
+    types: ['General Ward', 'Cataract Ward', 'Cornea Ward', 'Retina Ward', 'Glaucoma Ward']
+  },
+  Camp: {
+    label: 'Camp',
+    types: ['Stay Camp', 'Day Camp']
+  },
+  Daycare: {
+    label: 'Daycare'
+  },
+  Physician: {
+    label: 'Physician'
+  },
+  'Block Room': {
+    label: 'Block Room'
+  },
+  'Night Duty': {
+    label: 'Night Duty'
+  },
+  Emergency: {
+    label: 'Emergency'
+  },
+  'Today Doctor': {
+    label: 'Today Doctor'
+  }
+};
+
+// Main duty type categories for filtering
+const mainDutyTypes = Object.keys(filterConfig) as (keyof typeof filterConfig)[];
 
 type ViewType = 'daily' | 'monthly' | 'yearly';
 
@@ -45,19 +84,57 @@ const Roster: React.FC = () => {
   const { assignments, isLoading, refetch } = useRealtimeDutyAssignments(today);
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<DutyType | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
+  const [selectedSubFilter, setSelectedSubFilter] = useState<string | null>(null);
   const [swapDialogOpen, setSwapDialogOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<DutyWithDoctor | null>(null);
+
+  // Get sub-filter options for the selected main filter
+  const subFilterOptions = useMemo(() => {
+    if (!selectedFilter) return null;
+    const config = filterConfig[selectedFilter as keyof typeof filterConfig];
+    if (!config) return null;
+    
+    if ('units' in config) return { type: 'units', options: config.units };
+    if ('specialty' in config) return { type: 'specialty', options: config.specialty };
+    if ('types' in config) return { type: 'types', options: config.types };
+    return null;
+  }, [selectedFilter]);
 
   const filteredAssignments = useMemo(() => {
     return assignments.filter((assignment) => {
       const matchesSearch = assignment.doctor.name
         .toLowerCase()
         .includes(searchQuery.toLowerCase());
-      const matchesFilter = !selectedFilter || assignment.duty_type === selectedFilter;
-      return matchesSearch && matchesFilter;
+      
+      // Main filter matching
+      let matchesFilter = true;
+      if (selectedFilter) {
+        // For OT filter, match any specialty OT or the generic OT type
+        if (selectedFilter === 'OT') {
+          const otTypes = filterConfig.OT.specialty;
+          matchesFilter = assignment.duty_type === 'OT' || otTypes.some(ot => assignment.duty_type === ot);
+        } else {
+          matchesFilter = assignment.duty_type === selectedFilter;
+        }
+      }
+      
+      // Sub-filter matching (for unit/specialty/type)
+      let matchesSubFilter = true;
+      if (selectedSubFilter) {
+        if (subFilterOptions?.type === 'units') {
+          matchesSubFilter = assignment.unit === selectedSubFilter;
+        } else if (subFilterOptions?.type === 'specialty') {
+          matchesSubFilter = assignment.duty_type === selectedSubFilter;
+        } else if (subFilterOptions?.type === 'types') {
+          // For ward/camp types, check duty_type or unit
+          matchesSubFilter = assignment.duty_type === selectedSubFilter || assignment.unit === selectedSubFilter;
+        }
+      }
+      
+      return matchesSearch && matchesFilter && matchesSubFilter;
     });
-  }, [assignments, searchQuery, selectedFilter]);
+  }, [assignments, searchQuery, selectedFilter, selectedSubFilter, subFilterOptions]);
 
   const myAssignments = useMemo(() => {
     if (!user?.doctorId) return [];
@@ -222,14 +299,30 @@ const Roster: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="animate-slide-up stagger-1">
-        <div className="flex items-center gap-2 mb-2">
+      <div className="animate-slide-up stagger-1 space-y-3">
+        <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-muted-foreground" />
           <span className="text-tiny text-muted-foreground font-medium">Filter by duty type</span>
+          {(selectedFilter || selectedSubFilter) && (
+            <button
+              onClick={() => {
+                setSelectedFilter(null);
+                setSelectedSubFilter(null);
+              }}
+              className="ml-auto text-tiny text-primary hover:underline"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
+        
+        {/* Main Duty Type Filters */}
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => setSelectedFilter(null)}
+            onClick={() => {
+              setSelectedFilter(null);
+              setSelectedSubFilter(null);
+            }}
             className={cn(
               'px-3 py-1.5 rounded-full text-tiny font-medium transition-colors',
               !selectedFilter
@@ -239,10 +332,18 @@ const Roster: React.FC = () => {
           >
             All
           </button>
-          {dutyTypes.map((type) => (
+          {mainDutyTypes.map((type) => (
             <button
               key={type}
-              onClick={() => setSelectedFilter(selectedFilter === type ? null : type)}
+              onClick={() => {
+                if (selectedFilter === type) {
+                  setSelectedFilter(null);
+                  setSelectedSubFilter(null);
+                } else {
+                  setSelectedFilter(type);
+                  setSelectedSubFilter(null);
+                }
+              }}
               className={cn(
                 'px-3 py-1.5 rounded-full text-tiny font-medium transition-colors',
                 selectedFilter === type
@@ -250,10 +351,47 @@ const Roster: React.FC = () => {
                   : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20'
               )}
             >
-              {type}
+              {filterConfig[type].label}
             </button>
           ))}
         </div>
+
+        {/* Sub-Filters (shown when main filter has sub-options) */}
+        {subFilterOptions && (
+          <div className="pl-4 border-l-2 border-primary/30">
+            <p className="text-tiny text-muted-foreground mb-2">
+              {subFilterOptions.type === 'units' ? 'Select Unit:' : 
+               subFilterOptions.type === 'specialty' ? 'Select Specialty:' : 'Select Type:'}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedSubFilter(null)}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors',
+                  !selectedSubFilter
+                    ? 'bg-primary/80 text-primary-foreground'
+                    : 'bg-muted/80 text-muted-foreground hover:bg-muted-foreground/20'
+                )}
+              >
+                All {subFilterOptions.type}
+              </button>
+              {subFilterOptions.options.map((option) => (
+                <button
+                  key={option}
+                  onClick={() => setSelectedSubFilter(selectedSubFilter === option ? null : option)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors',
+                    selectedSubFilter === option
+                      ? 'bg-primary/80 text-primary-foreground'
+                      : 'bg-muted/80 text-muted-foreground hover:bg-muted-foreground/20'
+                  )}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Results Count */}

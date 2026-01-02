@@ -34,11 +34,12 @@ export interface RoleRules {
 // All duty types for reference
 export const ALL_DUTY_TYPES: DutyType[] = [
   'OPD', 'OT', 'Ward', 'Night Duty', 'Camp', 'Emergency',
-  'Cataract OT', 'Retina OT', 'Glaucoma OT', 'Cornea OT', 'Today Doctor'
+  'Cataract OT', 'Retina OT', 'Glaucoma OT', 'Cornea OT', 'Neuro OT', 'ORBIT OT', 'Pediatrics OT', 'IOL OT',
+  'Today Doctor', 'Daycare', 'Physician', 'Block Room'
 ];
 
 // Specialty OT types
-export const SPECIALTY_OT_TYPES: DutyType[] = ['Retina OT', 'Glaucoma OT', 'Cornea OT'];
+export const SPECIALTY_OT_TYPES: DutyType[] = ['Retina OT', 'Glaucoma OT', 'Cornea OT', 'Neuro OT', 'ORBIT OT', 'Pediatrics OT', 'IOL OT'];
 
 // Get rules for each designation
 export function getRoleRules(designation: DesignationLevel | null): RoleRules {

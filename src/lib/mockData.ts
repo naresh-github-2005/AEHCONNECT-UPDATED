@@ -93,11 +93,18 @@ export const dutyTypes = [
   { code: 'Retina OT', label: 'Retina OT', priority: 4 },
   { code: 'Glaucoma OT', label: 'Glaucoma OT', priority: 4 },
   { code: 'Cornea OT', label: 'Cornea OT', priority: 4 },
+  { code: 'Neuro OT', label: 'Neuro OT', priority: 4 },
+  { code: 'ORBIT OT', label: 'ORBIT OT', priority: 4 },
+  { code: 'Pediatrics OT', label: 'Pediatrics OT', priority: 4 },
+  { code: 'IOL OT', label: 'IOL OT', priority: 4 },
   { code: 'Night Duty', label: 'Night Duty', priority: 2 },
   { code: 'Ward', label: 'Ward Rounds', priority: 1 },
   { code: 'Today Doctor', label: 'Today Doctor', priority: 5 },
   { code: 'Camp', label: 'Camp', priority: 3 },
   { code: 'Emergency', label: 'Emergency', priority: 2 },
+  { code: 'Daycare', label: 'Daycare', priority: 2 },
+  { code: 'Physician', label: 'Physician', priority: 3 },
+  { code: 'Block Room', label: 'Block Room', priority: 3 },
 ];
 
 // Mock Doctors - Realistic profiles based on hospital patterns

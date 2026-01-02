@@ -791,7 +791,14 @@ export type Database = {
         | "Retina OT"
         | "Glaucoma OT"
         | "Cornea OT"
+        | "Neuro OT"
+        | "ORBIT OT"
+        | "Pediatrics OT"
+        | "IOL OT"
         | "Today Doctor"
+        | "Daycare"
+        | "Physician"
+        | "Block Room"
       leave_status: "pending" | "approved" | "rejected"
       leave_type: "Casual" | "Emergency" | "Medical" | "Annual"
       medical_specialty:
@@ -960,7 +967,14 @@ export const Constants = {
         "Retina OT",
         "Glaucoma OT",
         "Cornea OT",
+        "Neuro OT",
+        "ORBIT OT",
+        "Pediatrics OT",
+        "IOL OT",
         "Today Doctor",
+        "Daycare",
+        "Physician",
+        "Block Room",
       ],
       leave_status: ["pending", "approved", "rejected"],
       leave_type: ["Casual", "Emergency", "Medical", "Annual"],

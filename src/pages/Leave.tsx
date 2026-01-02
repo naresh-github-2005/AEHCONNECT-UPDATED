@@ -187,9 +187,39 @@ const Leave: React.FC = () => {
   const handleSubmit = async () => {
     if (!startDate || !endDate || !selectedLeaveType || !doctorId) return;
 
+    const requestedDays = differenceInDays(endDate, startDate) + 1;
+
+    // Format date strings (YYYY-MM-DD) for reliable comparisons
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    const endDateStr = format(endDate, 'yyyy-MM-dd');
+
+    // Server-side check: query DB for any overlapping approved/pending leaves
+    // Overlap condition: start_date <= new_end AND end_date >= new_start
+    const { data: overlapping, error: overlapError } = await supabase
+      .from('leave_requests')
+      .select('id, leave_type, status, start_date, end_date')
+      .eq('doctor_id', doctorId)
+      .in('status', ['approved', 'pending'])
+      .lte('start_date', endDateStr)
+      .gte('end_date', startDateStr);
+
+    if (overlapError) {
+      console.error('Error checking overlapping leaves:', overlapError);
+    }
+
+    if (overlapping && overlapping.length > 0) {
+      const conflictingLeave = overlapping[0];
+      const conflictStatus = conflictingLeave.status === 'approved' ? 'approved' : 'pending';
+      toast({
+        title: 'Leave Conflict',
+        description: `You already have a ${conflictStatus} ${conflictingLeave.leave_type?.toLowerCase()} leave from ${format(new Date(conflictingLeave.start_date), 'MMM d')} to ${format(new Date(conflictingLeave.end_date), 'MMM d')}. You cannot apply for overlapping dates.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Validate against remaining leaves
     if (leaveBalance) {
-      const requestedDays = differenceInDays(endDate, startDate) + 1;
       let taken = 0;
       let max = 0;
 
@@ -213,10 +243,19 @@ const Leave: React.FC = () => {
       }
 
       const remaining = max - taken;
+      if (remaining <= 0) {
+        toast({
+          title: 'No Leave Balance',
+          description: `You have exhausted all your ${selectedLeaveType.toLowerCase()} leaves for this year. You cannot apply for more.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      
       if (requestedDays > remaining) {
         toast({
           title: 'Insufficient Leave Balance',
-          description: `You have only ${remaining} ${selectedLeaveType.toLowerCase()} leave day(s) remaining. Requesting ${requestedDays} day(s).`,
+          description: `You have only ${remaining} ${selectedLeaveType.toLowerCase()} leave day(s) remaining. You are requesting ${requestedDays} day(s).`,
           variant: 'destructive',
         });
         return;
@@ -225,13 +264,18 @@ const Leave: React.FC = () => {
 
     setIsSubmitting(true);
 
-    const { error } = await supabase.from('leave_requests').insert({
-      doctor_id: doctorId,
-      start_date: format(startDate, 'yyyy-MM-dd'),
-      end_date: format(endDate, 'yyyy-MM-dd'),
-      leave_type: selectedLeaveType,
-      status: 'pending',
-    });
+    // Insert and return the created row so we can optimistically update UI
+    const { data: inserted, error } = await supabase
+      .from('leave_requests')
+      .insert({
+        doctor_id: doctorId,
+        start_date: startDateStr,
+        end_date: endDateStr,
+        leave_type: selectedLeaveType,
+        status: 'pending',
+      })
+      .select()
+      .single();
 
     if (error) {
       toast({
@@ -244,6 +288,11 @@ const Leave: React.FC = () => {
         title: 'Leave Request Submitted',
         description: `Your ${selectedLeaveType.toLowerCase()} leave request has been submitted for approval.`,
       });
+
+      // Optimistically update local list so UI shows the new pending request immediately
+      if (inserted) {
+        setLeaveRequests((prev) => [inserted as any, ...(prev || [])]);
+      }
 
       setStartDate(undefined);
       setEndDate(undefined);
@@ -651,39 +700,80 @@ const Leave: React.FC = () => {
               Leave Type
             </label>
             <div className="grid grid-cols-2 gap-3">
-              {leaveTypes.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedLeaveType(type)}
-                  className={cn(
-                    'flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-all',
-                    selectedLeaveType === type
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50'
-                  )}
-                >
-                  <div
+              {leaveTypes.map((type) => {
+                // Calculate remaining for this type
+                let remaining = 999; // default if no balance loaded
+                if (leaveBalance) {
+                  switch (type) {
+                    case 'Casual':
+                      remaining = leaveBalance.maxCasual - leaveBalance.casualTaken;
+                      break;
+                    case 'Medical':
+                      remaining = leaveBalance.maxMedical - leaveBalance.medicalTaken;
+                      break;
+                    case 'Emergency':
+                      remaining = leaveBalance.maxEmergency - leaveBalance.emergencyTaken;
+                      break;
+                    case 'Annual':
+                      remaining = leaveBalance.maxAnnual - leaveBalance.annualTaken;
+                      break;
+                  }
+                }
+                const isExhausted = remaining <= 0;
+                
+                return (
+                  <button
+                    key={type}
+                    onClick={() => !isExhausted && setSelectedLeaveType(type)}
+                    disabled={isExhausted}
                     className={cn(
-                      'w-4 h-4 rounded-full border-2 flex items-center justify-center',
-                      selectedLeaveType === type
-                        ? 'border-primary bg-primary'
-                        : 'border-muted-foreground'
+                      'flex flex-col items-center justify-center gap-1 px-4 py-3 rounded-xl border-2 transition-all',
+                      isExhausted 
+                        ? 'border-destructive/30 bg-destructive/5 cursor-not-allowed opacity-60'
+                        : selectedLeaveType === type
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
                     )}
                   >
-                    {selectedLeaveType === type && (
-                      <Check className="w-2.5 h-2.5 text-primary-foreground" />
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={cn(
+                          'w-4 h-4 rounded-full border-2 flex items-center justify-center',
+                          isExhausted
+                            ? 'border-destructive/50'
+                            : selectedLeaveType === type
+                              ? 'border-primary bg-primary'
+                              : 'border-muted-foreground'
+                        )}
+                      >
+                        {selectedLeaveType === type && !isExhausted && (
+                          <Check className="w-2.5 h-2.5 text-primary-foreground" />
+                        )}
+                      </div>
+                      <span
+                        className={cn(
+                          'text-body font-medium',
+                          isExhausted 
+                            ? 'text-destructive/70'
+                            : selectedLeaveType === type 
+                              ? 'text-primary' 
+                              : 'text-foreground'
+                        )}
+                      >
+                        {type}
+                      </span>
+                    </div>
+                    {leaveBalance && (
+                      <span className={cn(
+                        'text-tiny',
+                        isExhausted ? 'text-destructive' : 'text-muted-foreground'
+                      )}>
+                        {isExhausted ? 'Exhausted' : `${remaining} left`}
+                      </span>
                     )}
-                  </div>
-                  <span
-                    className={cn(
-                      'text-body font-medium',
-                      selectedLeaveType === type ? 'text-primary' : 'text-foreground'
-                    )}
-                  >
-                    {type}
-                  </span>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

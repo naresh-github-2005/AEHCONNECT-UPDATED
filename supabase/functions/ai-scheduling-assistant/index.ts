@@ -57,9 +57,10 @@ serve(async (req) => {
 
     const { doctors, leaveRequests, existingAssignments, targetDate, dutyStats, camps } = await req.json();
     
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    // Use Google Gemini API directly
+    const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error("GOOGLE_AI_API_KEY is not configured. Add it in Supabase Edge Functions Secrets.");
     }
 
     console.log("Processing advanced scheduling request for date:", targetDate);
@@ -223,26 +224,34 @@ ${JSON.stringify(existingAssignments?.slice(0, 30) || [], null, 2)}
 
 Create assignments that are FAIR, SAFE, and OPTIMAL for patient care.`;
 
-    console.log("Sending advanced scheduling request to AI...");
+    console.log("Sending advanced scheduling request to Google Gemini AI...");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Google Gemini API endpoint
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_AI_API_KEY}`;
+
+    const response = await fetch(geminiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
+        contents: [
+          {
+            parts: [
+              { text: `${systemPrompt}\n\n${userPrompt}` }
+            ]
+          }
         ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 8192,
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("Gemini API error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
@@ -250,18 +259,18 @@ Create assignments that are FAIR, SAFE, and OPTIMAL for patient care.`;
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }), {
-          status: 402,
+      if (response.status === 403) {
+        return new Response(JSON.stringify({ error: "Invalid API key or quota exceeded. Check your Google AI API key." }), {
+          status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       
-      throw new Error(`AI gateway error: ${response.status}`);
+      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     console.log("AI response received, parsing...");
 
