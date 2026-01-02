@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { Bell } from 'lucide-react';
+import { Bell, LogOut } from 'lucide-react';
 
 interface AppHeaderProps {
   title?: string;
@@ -15,8 +15,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   subtitle,
   showNotification = true 
 }) => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/');
+  };
   
   return (
     <header className="glass-header text-primary-foreground sticky top-0 z-40 pt-safe-top">
@@ -45,6 +50,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               <span className="absolute top-2 right-2 w-2 h-2 bg-warning rounded-full" />
             </button>
           )}
+          <button 
+            onClick={handleLogout}
+            className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-red-500/80 transition-colors"
+            title="Logout"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
         </div>
       </div>
     </header>

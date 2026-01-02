@@ -60,7 +60,13 @@ const MonthlyRosterGenerator: React.FC = () => {
         .select('id, name, seniority, specialty, can_do_opd, can_do_ot, can_do_ward, can_do_camp, can_do_night, max_night_duties_per_month, fixed_off_days')
         .eq('is_active', true);
       
-      if (doctors) setDbDoctors(doctors as DbDoctor[]);
+      if (doctors) {
+        setDbDoctors(doctors as DbDoctor[]);
+        console.log('[MonthlyRosterGenerator] Loaded active doctors:', doctors.length);
+        console.log('[MonthlyRosterGenerator] Doctor names:', doctors.map(d => d.name).join(', '));
+      } else {
+        console.log('[MonthlyRosterGenerator] No active doctors found in database!');
+      }
 
       // Count existing assignments for the month
       const { count } = await supabase
@@ -150,6 +156,8 @@ const MonthlyRosterGenerator: React.FC = () => {
         });
 
         try {
+          console.log(`[${dateStr}] Sending request with ${dbDoctors.length} doctors...`);
+          
           const response = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-scheduling-assistant`,
             {
@@ -169,18 +177,33 @@ const MonthlyRosterGenerator: React.FC = () => {
             }
           );
 
+          console.log(`[${dateStr}] Response status: ${response.status}`);
+          const responseText = await response.text();
+          console.log(`[${dateStr}] Response body (first 500 chars):`, responseText.substring(0, 500));
+
           if (!response.ok) {
-            const errorData = await response.json();
+            let errorData;
+            try {
+              errorData = JSON.parse(responseText);
+            } catch {
+              errorData = { rawError: responseText };
+            }
             console.error(`Error generating for ${dateStr}:`, errorData);
             errorCount++;
             continue;
           }
 
-          const data = await response.json();
+          const data = JSON.parse(responseText);
+          
+          console.log(`[${dateStr}] Parsed response - Assignments count:`, data.assignments?.length || 0);
           
           if (data.assignments && data.assignments.length > 0) {
-            // Save assignments to database
-            const validDutyTypes: DbDutyType[] = ['OPD', 'OT', 'Ward', 'Night Duty', 'Camp', 'Emergency', 'Cataract OT', 'Retina OT', 'Glaucoma OT', 'Cornea OT', 'Today Doctor'];
+            // Save assignments to database - include all valid duty types
+            const validDutyTypes: DbDutyType[] = [
+              'OPD', 'OT', 'Ward', 'Night Duty', 'Camp', 'Emergency', 
+              'Cataract OT', 'Retina OT', 'Glaucoma OT', 'Cornea OT', 'Today Doctor',
+              'Neuro OT', 'ORBIT OT', 'Pediatrics OT', 'IOL OT', 'Daycare', 'Physician', 'Block Room'
+            ];
             
             const dbAssignments = data.assignments
               .filter((a: any) => validDutyTypes.includes(a.dutyType as DbDutyType))
@@ -209,8 +232,8 @@ const MonthlyRosterGenerator: React.FC = () => {
           errorCount++;
         }
 
-        // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Delay between requests to avoid rate limiting (2 seconds)
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
       setProgress(prev => ({ ...prev, status: 'complete' }));

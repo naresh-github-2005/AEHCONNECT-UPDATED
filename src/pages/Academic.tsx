@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   Calendar, 
   BookOpen, 
@@ -24,7 +25,11 @@ import {
   User,
   GraduationCap,
   Pencil,
-  Trash2
+  Trash2,
+  ExternalLink,
+  FileText,
+  X,
+  Building
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +47,11 @@ interface ClassItem {
   location: string | null;
   notes: string | null;
   batch: string | null;
+  department: string | null;
+  speaker_name: string | null;
+  study_material: string | null;
+  material_urls: string[] | null;
+  url_display_texts: string[] | null;
 }
 
 const classTypeColors: Record<ClassType, string> = {
@@ -68,25 +78,39 @@ const classTypeLabels: Record<ClassType, string> = {
   other: 'Other'
 };
 
+const departments = [
+  'General', 'Glaucoma', 'Retina', 'Cornea', 'Uvea', 'Orbit', 'Neuro', 
+  'Paediatric', 'Cataract', 'Oculoplasty', 'Squint', 'Refraction'
+];
+
 const Academic: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [currentMonth, setCurrentMonth] = useState(new Date(2025, 11, 1)); // December 2025
+  const [currentMonth, setCurrentMonth] = useState(new Date(2026, 0, 1)); // January 2026
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
+  
+  // Form data with new fields
   const [formData, setFormData] = useState({
     title: '',
     class_type: 'lecture' as ClassType,
     class_date: format(new Date(), 'yyyy-MM-dd'),
-    start_time: '16:00',
-    end_time: '17:00',
+    start_time: '07:00',
+    end_time: '08:00',
     topic: '',
     moderator_name: '',
     location: 'Conference Room',
     notes: '',
-    batch: ''
+    batch: '',
+    department: '',
+    speaker_name: '',
+    study_material: '',
+    material_urls: '',
+    url_display_texts: ''
   });
 
   const isAdmin = user?.role === 'admin';
@@ -114,6 +138,9 @@ const Academic: React.FC = () => {
   // Add class mutation
   const addClassMutation = useMutation({
     mutationFn: async (newClass: typeof formData) => {
+      const urls = newClass.material_urls ? newClass.material_urls.split('\n').filter(u => u.trim()) : null;
+      const displayTexts = newClass.url_display_texts ? newClass.url_display_texts.split('\n').filter(t => t.trim()) : null;
+      
       const { error } = await supabase
         .from('classes')
         .insert([{
@@ -126,7 +153,12 @@ const Academic: React.FC = () => {
           moderator_name: newClass.moderator_name || null,
           location: newClass.location || 'Conference Room',
           notes: newClass.notes || null,
-          batch: newClass.batch || null
+          batch: newClass.batch || null,
+          department: newClass.department || null,
+          speaker_name: newClass.speaker_name || null,
+          study_material: newClass.study_material || null,
+          material_urls: urls,
+          url_display_texts: displayTexts
         }]);
       
       if (error) throw error;
@@ -146,6 +178,9 @@ const Academic: React.FC = () => {
   // Update class mutation
   const updateClassMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+      const urls = data.material_urls ? data.material_urls.split('\n').filter(u => u.trim()) : null;
+      const displayTexts = data.url_display_texts ? data.url_display_texts.split('\n').filter(t => t.trim()) : null;
+      
       const { error } = await supabase
         .from('classes')
         .update({
@@ -158,7 +193,12 @@ const Academic: React.FC = () => {
           moderator_name: data.moderator_name || null,
           location: data.location || 'Conference Room',
           notes: data.notes || null,
-          batch: data.batch || null
+          batch: data.batch || null,
+          department: data.department || null,
+          speaker_name: data.speaker_name || null,
+          study_material: data.study_material || null,
+          material_urls: urls,
+          url_display_texts: displayTexts
         })
         .eq('id', id);
       
@@ -202,13 +242,18 @@ const Academic: React.FC = () => {
       title: '',
       class_type: 'lecture',
       class_date: format(new Date(), 'yyyy-MM-dd'),
-      start_time: '16:00',
-      end_time: '17:00',
+      start_time: '07:00',
+      end_time: '08:00',
       topic: '',
       moderator_name: '',
       location: 'Conference Room',
       notes: '',
-      batch: ''
+      batch: '',
+      department: '',
+      speaker_name: '',
+      study_material: '',
+      material_urls: '',
+      url_display_texts: ''
     });
   };
 
@@ -224,9 +269,19 @@ const Academic: React.FC = () => {
       moderator_name: classItem.moderator_name || '',
       location: classItem.location || 'Conference Room',
       notes: classItem.notes || '',
-      batch: classItem.batch || ''
+      batch: classItem.batch || '',
+      department: classItem.department || '',
+      speaker_name: classItem.speaker_name || '',
+      study_material: classItem.study_material || '',
+      material_urls: classItem.material_urls?.join('\n') || '',
+      url_display_texts: classItem.url_display_texts?.join('\n') || ''
     });
     setIsEditDialogOpen(true);
+  };
+
+  const handleViewDetails = (classItem: ClassItem) => {
+    setSelectedClass(classItem);
+    setIsDetailDialogOpen(true);
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -251,14 +306,17 @@ const Academic: React.FC = () => {
     return classes.filter(c => isSameDay(parseISO(c.class_date), date));
   };
 
-  // Get today's and upcoming classes
-  const upcomingClasses = useMemo(() => {
-    const today = new Date();
-    return classes.filter(c => parseISO(c.class_date) >= today).slice(0, 5);
-  }, [classes]);
-
   // Selected date classes
   const selectedDateClasses = selectedDate ? getClassesForDate(selectedDate) : [];
+
+  // Stats calculations
+  const stats = useMemo(() => {
+    const total = classes.length;
+    const grandRounds = classes.filter(c => c.class_type === 'grand_rounds').length;
+    const lectures = classes.filter(c => c.class_type === 'lecture').length;
+    const casePresentations = classes.filter(c => c.class_type === 'case_presentation').length;
+    return { total, grandRounds, lectures, casePresentations };
+  }, [classes]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -268,6 +326,184 @@ const Academic: React.FC = () => {
     }
     addClassMutation.mutate(formData);
   };
+
+  // Class form component (reusable for add/edit)
+  const ClassForm = ({ onSubmit, isEdit = false }: { onSubmit: (e: React.FormEvent) => void; isEdit?: boolean }) => (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label>Title *</Label>
+        <Input
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          placeholder="Class title"
+          required
+        />
+      </div>
+      
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Lecture Type *</Label>
+          <Select
+            value={formData.class_type}
+            onValueChange={(value: ClassType) => setFormData({ ...formData, class_type: value })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(classTypeLabels).map(([key, label]) => (
+                <SelectItem key={key} value={key}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-2">
+          <Label>Department</Label>
+          <Select
+            value={formData.department || 'none'}
+            onValueChange={(value) => setFormData({ ...formData, department: value === 'none' ? '' : value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select department" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No Department</SelectItem>
+              {departments.map(dept => (
+                <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-3 gap-3">
+        <div className="space-y-2">
+          <Label>Date *</Label>
+          <Input
+            type="date"
+            value={formData.class_date}
+            onChange={(e) => setFormData({ ...formData, class_date: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Start Time</Label>
+          <Input
+            type="time"
+            value={formData.start_time}
+            onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>End Time</Label>
+          <Input
+            type="time"
+            value={formData.end_time}
+            onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+          />
+        </div>
+      </div>
+      
+      <div className="space-y-2">
+        <Label>Topic</Label>
+        <Input
+          value={formData.topic}
+          onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
+          placeholder="Topic details"
+        />
+      </div>
+      
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Speaker</Label>
+          <Input
+            value={formData.speaker_name}
+            onChange={(e) => setFormData({ ...formData, speaker_name: e.target.value })}
+            placeholder="Speaker name(s)"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Moderator</Label>
+          <Input
+            value={formData.moderator_name}
+            onChange={(e) => setFormData({ ...formData, moderator_name: e.target.value })}
+            placeholder="Moderator name"
+          />
+        </div>
+      </div>
+      
+      <div className="space-y-2">
+        <Label>Study Material</Label>
+        <Input
+          value={formData.study_material}
+          onChange={(e) => setFormData({ ...formData, study_material: e.target.value })}
+          placeholder="e.g., AAO BSCC Series, Chapter 11"
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label>Material URLs (one per line)</Label>
+        <Textarea
+          value={formData.material_urls}
+          onChange={(e) => setFormData({ ...formData, material_urls: e.target.value })}
+          placeholder="https://drive.google.com/file/...&#10;https://drive.google.com/file/..."
+          rows={3}
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label>URL Display Texts (one per line, matching URLs order)</Label>
+        <Textarea
+          value={formData.url_display_texts}
+          onChange={(e) => setFormData({ ...formData, url_display_texts: e.target.value })}
+          placeholder="Document 1.pdf&#10;Document 2.pdf"
+          rows={3}
+        />
+      </div>
+      
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Location</Label>
+          <Input
+            value={formData.location}
+            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+            placeholder="Conference Room"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Batch</Label>
+          <Input
+            value={formData.batch}
+            onChange={(e) => setFormData({ ...formData, batch: e.target.value })}
+            placeholder="e.g., Batch 1"
+          />
+        </div>
+      </div>
+      
+      <div className="space-y-2">
+        <Label>Notes</Label>
+        <Textarea
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          placeholder="Additional notes"
+          rows={2}
+        />
+      </div>
+      
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={() => isEdit ? setIsEditDialogOpen(false) : setIsAddDialogOpen(false)}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isEdit ? updateClassMutation.isPending : addClassMutation.isPending}>
+          {isEdit 
+            ? (updateClassMutation.isPending ? 'Saving...' : 'Save Changes')
+            : (addClassMutation.isPending ? 'Adding...' : 'Add Class')
+          }
+        </Button>
+      </DialogFooter>
+    </form>
+  );
 
   return (
     <div className="space-y-6 pb-24">
@@ -279,10 +515,10 @@ const Academic: React.FC = () => {
             Academic Schedule
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Classes, Grand Rounds & Academic Activities
+            DNB Classes, Grand Rounds & Academic Activities
           </p>
         </div>
-        {user?.role === 'admin' && (
+        {isAdmin && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-2">
@@ -290,127 +526,11 @@ const Academic: React.FC = () => {
                 Add Class
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Class</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Title *</Label>
-                  <Input
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    placeholder="Class title"
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Type</Label>
-                    <Select
-                      value={formData.class_type}
-                      onValueChange={(value: ClassType) => setFormData({ ...formData, class_type: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(classTypeLabels).map(([key, label]) => (
-                          <SelectItem key={key} value={key}>{label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Date *</Label>
-                    <Input
-                      type="date"
-                      value={formData.class_date}
-                      onChange={(e) => setFormData({ ...formData, class_date: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Start Time</Label>
-                    <Input
-                      type="time"
-                      value={formData.start_time}
-                      onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>End Time</Label>
-                    <Input
-                      type="time"
-                      value={formData.end_time}
-                      onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Topic</Label>
-                  <Input
-                    value={formData.topic}
-                    onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
-                    placeholder="Topic details"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Moderator</Label>
-                  <Input
-                    value={formData.moderator_name}
-                    onChange={(e) => setFormData({ ...formData, moderator_name: e.target.value })}
-                    placeholder="Moderator name"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Location</Label>
-                    <Input
-                      value={formData.location}
-                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                      placeholder="Conference Room"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Batch</Label>
-                    <Input
-                      value={formData.batch}
-                      onChange={(e) => setFormData({ ...formData, batch: e.target.value })}
-                      placeholder="e.g., Batch 1"
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Notes</Label>
-                  <Textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Additional notes"
-                    rows={2}
-                  />
-                </div>
-                
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={addClassMutation.isPending}>
-                    {addClassMutation.isPending ? 'Adding...' : 'Add Class'}
-                  </Button>
-                </DialogFooter>
-              </form>
+              <ClassForm onSubmit={handleSubmit} />
             </DialogContent>
           </Dialog>
         )}
@@ -425,8 +545,8 @@ const Academic: React.FC = () => {
                 <BookOpen className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{classes.length}</p>
-                <p className="text-xs text-muted-foreground">This Month</p>
+                <p className="text-2xl font-bold text-foreground">{stats.total}</p>
+                <p className="text-xs text-muted-foreground">Total This Month</p>
               </div>
             </div>
           </CardContent>
@@ -439,10 +559,22 @@ const Academic: React.FC = () => {
                 <Users className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">
-                  {classes.filter(c => c.class_type === 'grand_rounds').length}
-                </p>
+                <p className="text-2xl font-bold text-foreground">{stats.grandRounds}</p>
                 <p className="text-xs text-muted-foreground">Grand Rounds</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-blue-400/10 to-blue-500/5 border-blue-400/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-400/20">
+                <GraduationCap className="w-5 h-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{stats.lectures}</p>
+                <p className="text-xs text-muted-foreground">Lectures</p>
               </div>
             </div>
           </CardContent>
@@ -455,26 +587,8 @@ const Academic: React.FC = () => {
                 <Calendar className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">
-                  {classes.filter(c => c.class_type === 'case_presentation').length}
-                </p>
-                <p className="text-xs text-muted-foreground">Presentations</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-indigo-500/10 to-indigo-600/5 border-indigo-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-indigo-500/20">
-                <GraduationCap className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">
-                  {classes.filter(c => c.class_type === 'nbems_class').length}
-                </p>
-                <p className="text-xs text-muted-foreground">NBEMS Classes</p>
+                <p className="text-2xl font-bold text-foreground">{stats.casePresentations}</p>
+                <p className="text-xs text-muted-foreground">Case Presentations</p>
               </div>
             </div>
           </CardContent>
@@ -499,6 +613,13 @@ const Academic: React.FC = () => {
               </Button>
               <Button
                 variant="outline"
+                size="sm"
+                onClick={() => setCurrentMonth(new Date())}
+              >
+                Today
+              </Button>
+              <Button
+                variant="outline"
                 size="icon"
                 onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
               >
@@ -508,56 +629,72 @@ const Academic: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {/* Day headers */}
-          <div className="grid grid-cols-7 gap-1 mb-2">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
-                {day}
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading schedule...</div>
+          ) : (
+            <>
+              {/* Day headers */}
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
+                    {day}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          
-          {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-1">
-            {/* Empty cells for days before month starts */}
-            {Array.from({ length: startOfMonth(currentMonth).getDay() }).map((_, i) => (
-              <div key={`empty-${i}`} className="aspect-square" />
-            ))}
-            
-            {/* Days */}
-            {daysInMonth.map(day => {
-              const dayClasses = getClassesForDate(day);
-              const hasClasses = dayClasses.length > 0;
-              const isSelected = selectedDate && isSameDay(day, selectedDate);
               
-              return (
-                <button
-                  key={day.toISOString()}
-                  onClick={() => setSelectedDate(day)}
-                  className={cn(
-                    'aspect-square p-1 rounded-lg transition-all relative',
-                    'hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-primary/50',
-                    isSelected && 'bg-primary/20 ring-2 ring-primary',
-                    isToday(day) && !isSelected && 'bg-accent'
-                  )}
-                >
-                  <span className={cn(
-                    'text-sm font-medium',
-                    isToday(day) && 'text-primary font-bold'
-                  )}>
-                    {format(day, 'd')}
-                  </span>
-                  {hasClasses && (
-                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
-                      {dayClasses.slice(0, 3).map((_, i) => (
-                        <div key={i} className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      ))}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+              {/* Calendar grid */}
+              <div className="grid grid-cols-7 gap-1">
+                {/* Empty cells for days before month starts */}
+                {Array.from({ length: startOfMonth(currentMonth).getDay() }).map((_, i) => (
+                  <div key={`empty-${i}`} className="aspect-square" />
+                ))}
+                
+                {/* Days */}
+                {daysInMonth.map(day => {
+                  const dayClasses = getClassesForDate(day);
+                  const hasClasses = dayClasses.length > 0;
+                  const isSelected = selectedDate && isSameDay(day, selectedDate);
+                  
+                  return (
+                    <button
+                      key={day.toISOString()}
+                      onClick={() => setSelectedDate(day)}
+                      className={cn(
+                        'aspect-square p-1 rounded-lg transition-all relative flex flex-col items-center justify-start',
+                        'hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-primary/50',
+                        isSelected && 'bg-primary/20 ring-2 ring-primary',
+                        isToday(day) && !isSelected && 'bg-accent'
+                      )}
+                    >
+                      <span className={cn(
+                        'text-sm font-medium',
+                        isToday(day) && 'text-primary font-bold'
+                      )}>
+                        {format(day, 'd')}
+                      </span>
+                      {hasClasses && (
+                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
+                          {dayClasses.slice(0, 3).map((c, i) => (
+                            <div 
+                              key={i} 
+                              className={cn(
+                                'w-1.5 h-1.5 rounded-full',
+                                c.class_type === 'case_presentation' ? 'bg-green-500' :
+                                c.class_type === 'grand_rounds' ? 'bg-purple-500' : 'bg-blue-500'
+                              )} 
+                            />
+                          ))}
+                          {dayClasses.length > 3 && (
+                            <span className="text-[8px] text-muted-foreground">+{dayClasses.length - 3}</span>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -565,44 +702,87 @@ const Academic: React.FC = () => {
       {selectedDate && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">
-              Classes on {format(selectedDate, 'EEEE, MMMM d, yyyy')}
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">
+                {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => setSelectedDate(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {selectedDateClasses.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">No classes scheduled</p>
+              <div className="text-center py-8">
+                <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">No classes scheduled for this day</p>
+                {isAdmin && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3"
+                    onClick={() => {
+                      setFormData({ ...formData, class_date: format(selectedDate, 'yyyy-MM-dd') });
+                      setIsAddDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Class
+                  </Button>
+                )}
+              </div>
             ) : (
               <div className="space-y-3">
                 {selectedDateClasses.map(classItem => (
                   <div
                     key={classItem.id}
-                    className="p-4 rounded-lg border bg-card hover:bg-accent/30 transition-colors"
+                    className="p-4 rounded-lg border bg-card hover:bg-accent/30 transition-colors cursor-pointer"
+                    onClick={() => handleViewDetails(classItem)}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <Badge className={cn('border', classTypeColors[classItem.class_type])}>
                             {classTypeLabels[classItem.class_type]}
                           </Badge>
+                          {classItem.department && (
+                            <Badge variant="outline" className="text-xs">
+                              <Building className="w-3 h-3 mr-1" />
+                              {classItem.department}
+                            </Badge>
+                          )}
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {classItem.start_time} - {classItem.end_time}
                           </span>
                         </div>
                         <h4 className="font-semibold text-foreground">{classItem.title}</h4>
-                        {classItem.topic && (
+                        {classItem.topic && classItem.topic !== classItem.title && (
                           <p className="text-sm text-muted-foreground mt-1">{classItem.topic}</p>
                         )}
-                        {classItem.moderator_name && (
-                          <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            Moderator: {classItem.moderator_name}
-                          </p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                          {classItem.speaker_name && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              Speaker: {classItem.speaker_name}
+                            </p>
+                          )}
+                          {classItem.moderator_name && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              Moderator: {classItem.moderator_name}
+                            </p>
+                          )}
+                        </div>
+                        {classItem.material_urls && classItem.material_urls.length > 0 && (
+                          <div className="mt-2 flex items-center gap-1 text-xs text-primary">
+                            <FileText className="w-3 h-3" />
+                            {classItem.material_urls.length} material(s) available
+                          </div>
                         )}
                       </div>
                       {isAdmin && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -650,90 +830,126 @@ const Academic: React.FC = () => {
         </Card>
       )}
 
-      {/* Upcoming Classes */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-primary" />
-            Upcoming Classes
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-4 text-muted-foreground">Loading...</div>
-          ) : upcomingClasses.length === 0 ? (
-            <p className="text-muted-foreground text-center py-4">No upcoming classes</p>
-          ) : (
-            <div className="space-y-3">
-              {upcomingClasses.map(classItem => (
-                <div
-                  key={classItem.id}
-                  className="p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge className={cn('border text-xs', classTypeColors[classItem.class_type])}>
-                          {classTypeLabels[classItem.class_type]}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {format(parseISO(classItem.class_date), 'MMM d')} • {classItem.start_time}
-                        </span>
+      {/* Class Details Dialog */}
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-primary" />
+              Class Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedClass && (
+            <ScrollArea className="max-h-[70vh] pr-4">
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <Badge className={cn('border', classTypeColors[selectedClass.class_type])}>
+                      {classTypeLabels[selectedClass.class_type]}
+                    </Badge>
+                    {selectedClass.department && (
+                      <Badge variant="outline">
+                        <Building className="w-3 h-3 mr-1" />
+                        {selectedClass.department}
+                      </Badge>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-semibold">{selectedClass.title}</h3>
+                  {selectedClass.topic && selectedClass.topic !== selectedClass.title && (
+                    <p className="text-muted-foreground mt-1">{selectedClass.topic}</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Date</p>
+                    <p className="font-medium">{format(parseISO(selectedClass.class_date), 'EEEE, MMMM d, yyyy')}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Time</p>
+                    <p className="font-medium">{selectedClass.start_time} - {selectedClass.end_time}</p>
+                  </div>
+                </div>
+
+                {(selectedClass.speaker_name || selectedClass.moderator_name) && (
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {selectedClass.speaker_name && (
+                      <div>
+                        <p className="text-muted-foreground">Speaker</p>
+                        <p className="font-medium">{selectedClass.speaker_name}</p>
                       </div>
-                      <h4 className="font-medium text-foreground text-sm">{classItem.title}</h4>
-                      {classItem.moderator_name && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Moderator: {classItem.moderator_name}
-                        </p>
-                      )}
-                    </div>
-                    {isAdmin && (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleEdit(classItem)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Class</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete "{classItem.title}"? This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => deleteClassMutation.mutate(classItem.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                    )}
+                    {selectedClass.moderator_name && (
+                      <div>
+                        <p className="text-muted-foreground">Moderator</p>
+                        <p className="font-medium">{selectedClass.moderator_name}</p>
                       </div>
                     )}
                   </div>
-                </div>
-              ))}
-            </div>
+                )}
+
+                {selectedClass.study_material && (
+                  <div className="text-sm">
+                    <p className="text-muted-foreground">Study Material</p>
+                    <p className="font-medium">{selectedClass.study_material}</p>
+                  </div>
+                )}
+
+                {selectedClass.material_urls && selectedClass.material_urls.length > 0 && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">Reference Materials & Links</p>
+                    <div className="space-y-2">
+                      {selectedClass.material_urls.map((url, index) => (
+                        <a
+                          key={index}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 p-3 rounded-lg border bg-accent/30 hover:bg-accent/50 transition-colors text-sm group"
+                        >
+                          <FileText className="w-4 h-4 text-primary shrink-0" />
+                          <span className="flex-1 truncate">
+                            {selectedClass.url_display_texts?.[index] || `Material ${index + 1}`}
+                          </span>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedClass.location && (
+                  <div className="text-sm">
+                    <p className="text-muted-foreground">Location</p>
+                    <p className="font-medium">{selectedClass.location}</p>
+                  </div>
+                )}
+
+                {selectedClass.notes && (
+                  <div className="text-sm">
+                    <p className="text-muted-foreground">Notes</p>
+                    <p className="font-medium">{selectedClass.notes}</p>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
           )}
-        </CardContent>
-      </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDetailDialogOpen(false)}>
+              Close
+            </Button>
+            {isAdmin && selectedClass && (
+              <Button onClick={() => {
+                setIsDetailDialogOpen(false);
+                handleEdit(selectedClass);
+              }}>
+                <Pencil className="w-4 h-4 mr-1" />
+                Edit
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
@@ -743,127 +959,11 @@ const Academic: React.FC = () => {
           resetForm();
         }
       }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Class</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleEditSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Title *</Label>
-              <Input
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Class title"
-                required
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Type</Label>
-                <Select
-                  value={formData.class_type}
-                  onValueChange={(value: ClassType) => setFormData({ ...formData, class_type: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(classTypeLabels).map(([key, label]) => (
-                      <SelectItem key={key} value={key}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Date *</Label>
-                <Input
-                  type="date"
-                  value={formData.class_date}
-                  onChange={(e) => setFormData({ ...formData, class_date: e.target.value })}
-                  required
-                />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Start Time</Label>
-                <Input
-                  type="time"
-                  value={formData.start_time}
-                  onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>End Time</Label>
-                <Input
-                  type="time"
-                  value={formData.end_time}
-                  onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Topic</Label>
-              <Input
-                value={formData.topic}
-                onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
-                placeholder="Topic details"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Moderator</Label>
-              <Input
-                value={formData.moderator_name}
-                onChange={(e) => setFormData({ ...formData, moderator_name: e.target.value })}
-                placeholder="Moderator name"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Location</Label>
-                <Input
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="Conference Room"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Batch</Label>
-                <Input
-                  value={formData.batch}
-                  onChange={(e) => setFormData({ ...formData, batch: e.target.value })}
-                  placeholder="e.g., Batch 1"
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Additional notes"
-                rows={2}
-              />
-            </div>
-            
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={updateClassMutation.isPending}>
-                {updateClassMutation.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </DialogFooter>
-          </form>
+          <ClassForm onSubmit={handleEditSubmit} isEdit />
         </DialogContent>
       </Dialog>
     </div>

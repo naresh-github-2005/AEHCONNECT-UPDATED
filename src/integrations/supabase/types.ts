@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -379,16 +379,21 @@ export type Database = {
           class_type: Database["public"]["Enums"]["class_type"]
           created_at: string
           created_by: string | null
+          department: string | null
           end_time: string
           id: string
           location: string | null
+          material_urls: string[] | null
           moderator_id: string | null
           moderator_name: string | null
           notes: string | null
+          speaker_name: string | null
           start_time: string
+          study_material: string | null
           title: string
           topic: string | null
           updated_at: string
+          url_display_texts: string[] | null
         }
         Insert: {
           batch?: string | null
@@ -396,16 +401,21 @@ export type Database = {
           class_type?: Database["public"]["Enums"]["class_type"]
           created_at?: string
           created_by?: string | null
+          department?: string | null
           end_time?: string
           id?: string
           location?: string | null
+          material_urls?: string[] | null
           moderator_id?: string | null
           moderator_name?: string | null
           notes?: string | null
+          speaker_name?: string | null
           start_time?: string
+          study_material?: string | null
           title: string
           topic?: string | null
           updated_at?: string
+          url_display_texts?: string[] | null
         }
         Update: {
           batch?: string | null
@@ -413,16 +423,21 @@ export type Database = {
           class_type?: Database["public"]["Enums"]["class_type"]
           created_at?: string
           created_by?: string | null
+          department?: string | null
           end_time?: string
           id?: string
           location?: string | null
+          material_urls?: string[] | null
           moderator_id?: string | null
           moderator_name?: string | null
           notes?: string | null
+          speaker_name?: string | null
           start_time?: string
+          study_material?: string | null
           title?: string
           topic?: string | null
           updated_at?: string
+          url_display_texts?: string[] | null
         }
         Relationships: [
           {
@@ -499,12 +514,12 @@ export type Database = {
           health_constraints: string | null
           id: string
           is_active: boolean | null
-          max_hours_per_week: number
-          max_night_duties_per_month: number
-          max_casual_leaves: number
-          max_medical_leaves: number
-          max_emergency_leaves: number
           max_annual_leaves: number
+          max_casual_leaves: number
+          max_emergency_leaves: number
+          max_hours_per_week: number
+          max_medical_leaves: number
+          max_night_duties_per_month: number
           name: string
           performance_score: number | null
           phone: string
@@ -529,12 +544,12 @@ export type Database = {
           health_constraints?: string | null
           id?: string
           is_active?: boolean | null
-          max_hours_per_week?: number
-          max_night_duties_per_month?: number
-          max_casual_leaves?: number
-          max_medical_leaves?: number
-          max_emergency_leaves?: number
           max_annual_leaves?: number
+          max_casual_leaves?: number
+          max_emergency_leaves?: number
+          max_hours_per_week?: number
+          max_medical_leaves?: number
+          max_night_duties_per_month?: number
           name: string
           performance_score?: number | null
           phone: string
@@ -559,12 +574,12 @@ export type Database = {
           health_constraints?: string | null
           id?: string
           is_active?: boolean | null
-          max_hours_per_week?: number
-          max_night_duties_per_month?: number
-          max_casual_leaves?: number
-          max_medical_leaves?: number
-          max_emergency_leaves?: number
           max_annual_leaves?: number
+          max_casual_leaves?: number
+          max_emergency_leaves?: number
+          max_hours_per_week?: number
+          max_medical_leaves?: number
+          max_night_duties_per_month?: number
           name?: string
           performance_score?: number | null
           phone?: string
@@ -668,6 +683,77 @@ export type Database = {
           },
         ]
       }
+      surgery_logs: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          doctor_id: string
+          feedback: string | null
+          feedback_given_at: string | null
+          feedback_given_by: string | null
+          id: string
+          is_viewed: boolean | null
+          notes: string | null
+          patient_mrn: string | null
+          rating: number | null
+          surgery_date: string
+          surgery_type: string
+          updated_at: string | null
+          video_title: string | null
+          video_url: string
+          viewed_at: string | null
+          viewed_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          doctor_id: string
+          feedback?: string | null
+          feedback_given_at?: string | null
+          feedback_given_by?: string | null
+          id?: string
+          is_viewed?: boolean | null
+          notes?: string | null
+          patient_mrn?: string | null
+          rating?: number | null
+          surgery_date: string
+          surgery_type: string
+          updated_at?: string | null
+          video_title?: string | null
+          video_url: string
+          viewed_at?: string | null
+          viewed_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          doctor_id?: string
+          feedback?: string | null
+          feedback_given_at?: string | null
+          feedback_given_by?: string | null
+          id?: string
+          is_viewed?: boolean | null
+          notes?: string | null
+          patient_mrn?: string | null
+          rating?: number | null
+          surgery_date?: string
+          surgery_type?: string
+          updated_at?: string | null
+          video_title?: string | null
+          video_url?: string
+          viewed_at?: string | null
+          viewed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "surgery_logs_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       swap_requests: {
         Row: {
           created_at: string
@@ -759,6 +845,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_leaves_taken: {
+        Args: {
+          p_doctor_id: string
+          p_leave_type: Database["public"]["Enums"]["leave_type"]
+          p_year?: number
+        }
+        Returns: number
+      }
+      get_doctor_leave_summary: {
+        Args: { p_doctor_id: string }
+        Returns: {
+          leave_type: string
+          leaves_remaining: number
+          leaves_taken: number
+          max_leaves: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -791,11 +894,11 @@ export type Database = {
         | "Retina OT"
         | "Glaucoma OT"
         | "Cornea OT"
+        | "Today Doctor"
         | "Neuro OT"
         | "ORBIT OT"
         | "Pediatrics OT"
         | "IOL OT"
-        | "Today Doctor"
         | "Daycare"
         | "Physician"
         | "Block Room"
@@ -967,11 +1070,11 @@ export const Constants = {
         "Retina OT",
         "Glaucoma OT",
         "Cornea OT",
+        "Today Doctor",
         "Neuro OT",
         "ORBIT OT",
         "Pediatrics OT",
         "IOL OT",
-        "Today Doctor",
         "Daycare",
         "Physician",
         "Block Room",

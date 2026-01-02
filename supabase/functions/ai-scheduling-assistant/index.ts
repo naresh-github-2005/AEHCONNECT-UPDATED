@@ -197,37 +197,54 @@ REQUIRED JSON FORMAT:
       notes: c.notes
     })) || [];
 
+    // Get doctor IDs who are on approved leave for this date
+    const approvedLeaves = leaveRequests?.filter((l: any) => 
+      l.status === 'approved' || l.status === 'Approved'
+    ) || [];
+    const doctorsOnLeaveIds = new Set(approvedLeaves.map((l: any) => l.doctor_id));
+    
+    // Filter out doctors who are on leave - they should NOT be assigned any duty
+    const availableDoctors = doctorDetails.filter((d: any) => !doctorsOnLeaveIds.has(d.id));
+    
+    console.log("Doctors on leave:", doctorsOnLeaveIds.size);
+    console.log("Available doctors for scheduling:", availableDoctors.length);
+
+    // Get camps for this specific date
+    const todayCamps = campDetails.filter((c: any) => c.date === targetDate);
+
     const userPrompt = `Create optimal duty assignments for ${targetDate}.
 
-## AVAILABLE DOCTORS (with constraints)
-${JSON.stringify(doctorDetails, null, 2)}
+## IMPORTANT: EXCLUSION RULES
+- Doctors on leave have ALREADY been excluded from the list below
+- Only assign duties to doctors in the AVAILABLE DOCTORS list
+- DO NOT create assignments for any doctor not in the available list
 
-## LEAVE REQUESTS (doctors unavailable on ${targetDate})
-${JSON.stringify(leaveRequests?.filter((l: any) => l.status === 'approved' || l.status === 'Approved') || [], null, 2)}
+## AVAILABLE DOCTORS FOR ${targetDate} (${availableDoctors.length} doctors - leave already excluded)
+${JSON.stringify(availableDoctors, null, 2)}
+
+## SCHEDULED CAMPS ON ${targetDate} (assign doctors to camps first if any)
+${JSON.stringify(todayCamps, null, 2)}
 
 ## CURRENT MONTH DUTY STATISTICS (for fairness tracking)
 ${JSON.stringify(statsContext, null, 2)}
-
-## SCHEDULED CAMPS ON ${targetDate}
-${JSON.stringify(campDetails.filter((c: any) => c.date === targetDate), null, 2)}
 
 ## RECENT ASSIGNMENTS (for context on workload patterns)
 ${JSON.stringify(existingAssignments?.slice(0, 30) || [], null, 2)}
 
 ## TASK
-1. First, assign doctors to any camps scheduled for this date
-2. Then, create a balanced schedule for remaining doctors
-3. Ensure Emergency coverage (24/7 requirement)
-4. Match specialties to appropriate units where possible
+1. If there are camps, assign appropriate doctors to camps FIRST
+2. Then create a balanced schedule for ALL remaining available doctors
+3. Ensure Emergency coverage (24/7 requirement)  
+4. Match specialties to appropriate OT units
 5. Respect all constraints (seniority, capabilities, limits)
-6. Maximize fairness in duty distribution
+6. EVERY available doctor should have at least one assignment
 
 Create assignments that are FAIR, SAFE, and OPTIMAL for patient care.`;
 
     console.log("Sending advanced scheduling request to Google Gemini AI...");
 
-    // Google Gemini API endpoint
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_AI_API_KEY}`;
+    // Google Gemini API endpoint - using v1 API with gemini-1.5-flash
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GOOGLE_AI_API_KEY}`;
 
     const response = await fetch(geminiUrl, {
       method: "POST",

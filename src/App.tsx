@@ -18,6 +18,7 @@ import DoctorProfiles from "./pages/DoctorProfiles";
 import Messages from "./pages/Messages";
 import Attendance from "./pages/Attendance";
 import Academic from "./pages/Academic";
+import SurgeryLog from "./pages/SurgeryLog";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 
@@ -176,6 +177,15 @@ const AppRoutes: React.FC = () => {
             <AppLayout>
               <Academic />
             </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/surgery-log"
+        element={
+          <ProtectedRoute>
+            <SurgeryLog />
           </ProtectedRoute>
         }
       />
