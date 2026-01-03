@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { Bell, LogOut, MoreVertical, User, FileText } from 'lucide-react';
+import { Bell, LogOut, MoreVertical, User, FileText, BookOpen, Library } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,6 +77,16 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 <FileText className="w-4 h-4 mr-2" />
                 Notes
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/my-publications')} className="cursor-pointer">
+                <BookOpen className="w-4 h-4 mr-2" />
+                My Publications
+              </DropdownMenuItem>
+              {user?.role === 'admin' && (
+                <DropdownMenuItem onClick={() => navigate('/all-publications')} className="cursor-pointer">
+                  <Library className="w-4 h-4 mr-2" />
+                  All Publications
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
                 <LogOut className="w-4 h-4 mr-2" />

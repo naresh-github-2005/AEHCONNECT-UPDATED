@@ -20,6 +20,8 @@ import Attendance from "./pages/Attendance";
 import Academic from "./pages/Academic";
 import SurgeryLog from "./pages/SurgeryLog";
 import Notes from "./pages/Notes";
+import MyPublications from "./pages/MyPublications";
+import AllPublications from "./pages/AllPublications";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 
@@ -198,6 +200,28 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <SurgeryLog />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/my-publications"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <MyPublications />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/all-publications"
+        element={
+          <ProtectedRoute adminOnly>
+            <AppLayout>
+              <AllPublications />
+            </AppLayout>
           </ProtectedRoute>
         }
       />

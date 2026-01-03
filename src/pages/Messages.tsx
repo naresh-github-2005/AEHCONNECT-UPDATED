@@ -22,15 +22,22 @@ import {
   MessageSquare, Send, Plus, Menu, Search, Users, 
   MoreVertical, Edit, Trash2, Megaphone, ChevronDown,
   Stethoscope, Building2, Activity, Moon, AlertTriangle, Tent,
-  Sun, UserCog, DoorOpen
+  Sun, UserCog, DoorOpen, ImagePlus, X, Loader2
 } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
+
+// Supported image formats
+const SUPPORTED_IMAGE_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 
+  'image/svg+xml', 'image/bmp', 'image/tiff'
+];
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 
 interface ChatChannel {
   id: string;
   name: string;
   description: string | null;
-  channel_type: 'group' | 'announcement';
+  channel_type: string;
   category: string;
   eligible_duties: string[] | null;
   created_by: string;
@@ -43,6 +50,7 @@ interface ChatMessage {
   sender_id: string;
   sender_name: string;
   content: string;
+  image_url: string | null;
   created_at: string;
 }
 
@@ -76,6 +84,7 @@ const Messages: React.FC = () => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [channels, setChannels] = useState<ChatChannel[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -86,6 +95,12 @@ const Messages: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSidebar, setShowSidebar] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['general']));
+
+  // Image upload state
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   const [showChannelDialog, setShowChannelDialog] = useState(false);
   const [editingChannel, setEditingChannel] = useState<ChatChannel | null>(null);
@@ -160,22 +175,107 @@ const Messages: React.FC = () => {
     return () => { subscription.unsubscribe(); };
   };
 
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedChannel || !user) return;
-    setSendingMessage(true);
+  // Image handling functions
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
+      toast({ 
+        title: 'Invalid file type', 
+        description: 'Please select a valid image (JPEG, PNG, GIF, WebP, SVG, BMP, TIFF)', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    // Validate file size
+    if (file.size > MAX_IMAGE_SIZE) {
+      toast({ 
+        title: 'File too large', 
+        description: 'Image must be less than 5MB', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    setSelectedImage(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearSelectedImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadImage = async (file: File): Promise<string | null> => {
     try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user?.id}/${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('chat-images')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-images')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error: any) {
+      console.error('Image upload error:', error);
+      toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
+      return null;
+    }
+  };
+
+  const sendMessage = async () => {
+    if ((!newMessage.trim() && !selectedImage) || !selectedChannel || !user) return;
+    
+    setSendingMessage(true);
+    setUploadingImage(!!selectedImage);
+    
+    try {
+      let imageUrl: string | null = null;
+      
+      // Upload image if selected
+      if (selectedImage) {
+        imageUrl = await uploadImage(selectedImage);
+        if (!imageUrl && !newMessage.trim()) {
+          // If image upload failed and no text, abort
+          setSendingMessage(false);
+          setUploadingImage(false);
+          return;
+        }
+      }
+
       const { error } = await supabase.from('chat_messages').insert({
         channel_id: selectedChannel.id,
         sender_id: user.id,
         sender_name: user.name || 'Unknown User',
-        content: newMessage.trim(),
+        content: newMessage.trim() || (imageUrl ? '📷 Image' : ''),
+        image_url: imageUrl,
       });
+      
       if (error) throw error;
+      
       setNewMessage('');
+      clearSelectedImage();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
       setSendingMessage(false);
+      setUploadingImage(false);
     }
   };
 
@@ -190,7 +290,7 @@ const Messages: React.FC = () => {
     setChannelForm({
       name: channel.name,
       description: channel.description || '',
-      channel_type: channel.channel_type,
+      channel_type: (channel.channel_type === 'announcement' ? 'announcement' : 'group') as 'group' | 'announcement',
       category: channel.category,
       eligible_duties: channel.eligible_duties || [],
     });
@@ -247,8 +347,27 @@ const Messages: React.FC = () => {
     }
   };
 
+  // Check if user is eligible to see/message in a channel
+  const isEligibleForChannel = (channel: ChatChannel): boolean => {
+    // Admin can see all channels
+    if (isAdmin) return true;
+    
+    // General category channels visible to all
+    if (channel.category === 'general') return true;
+    
+    // No duty restriction - visible to all
+    if (!channel.eligible_duties || channel.eligible_duties.length === 0) return true;
+    
+    // Check if user's duties overlap with channel's duties
+    const userDuties = user?.eligibleDuties || [];
+    return channel.eligible_duties.some(duty => userDuties.includes(duty));
+  };
+
   const channelsByCategory = useMemo(() => {
-    const filtered = channels.filter(ch => ch.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    // First filter by search query and eligibility
+    const filtered = channels.filter(ch => 
+      ch.name.toLowerCase().includes(searchQuery.toLowerCase()) && isEligibleForChannel(ch)
+    );
     const grouped: Record<string, ChatChannel[]> = {};
     filtered.forEach(channel => {
       const cat = channel.category || 'general';
@@ -256,7 +375,7 @@ const Messages: React.FC = () => {
       grouped[cat].push(channel);
     });
     return grouped;
-  }, [channels, searchQuery]);
+  }, [channels, searchQuery, user?.eligibleDuties, isAdmin]);
 
   const toggleCategory = (category: string) => {
     setExpandedCategories(prev => {
@@ -382,8 +501,9 @@ const Messages: React.FC = () => {
       );
     }
     const config = CATEGORY_CONFIG[selectedChannel.category] || CATEGORY_CONFIG.general;
-    // Allow sending if: it's a group channel (all members can send) OR it's announcement and user is admin
-    const canSendMessage = selectedChannel.channel_type === 'group' ? true : isAdmin;
+    // ALL eligible users can send messages in BOTH group AND announcement channels
+    // If user can see the channel, they can message in it
+    const canSendMessage = isEligibleForChannel(selectedChannel);
     return (
       <div className="flex-1 flex flex-col h-full">
         <div className="border-b px-4 py-3 flex items-center gap-3">
@@ -430,8 +550,18 @@ const Messages: React.FC = () => {
                             <span className="text-xs font-medium">{msg.sender_name}</span>
                             <span className="text-xs text-muted-foreground">{format(new Date(msg.created_at), 'h:mm a')}</span>
                           </div>
-                          <div className={`rounded-2xl px-4 py-2 ${isOwnMessage ? 'bg-primary text-primary-foreground rounded-tr-sm' : 'bg-muted rounded-tl-sm'}`}>
-                            <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                          <div className={`rounded-2xl ${msg.image_url ? 'p-1' : 'px-4 py-2'} ${isOwnMessage ? 'bg-primary text-primary-foreground rounded-tr-sm' : 'bg-muted rounded-tl-sm'}`}>
+                            {msg.image_url && (
+                              <img 
+                                src={msg.image_url} 
+                                alt="Shared image" 
+                                className="rounded-xl max-w-full max-h-64 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => setPreviewImageUrl(msg.image_url)}
+                              />
+                            )}
+                            {msg.content && msg.content !== '📷 Image' && (
+                              <p className={`text-sm whitespace-pre-wrap break-words ${msg.image_url ? 'px-3 py-2' : ''}`}>{msg.content}</p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -445,7 +575,43 @@ const Messages: React.FC = () => {
         </ScrollArea>
         {canSendMessage ? (
           <div className="border-t p-4">
+            {/* Image preview */}
+            {imagePreview && (
+              <div className="mb-3 relative inline-block">
+                <img 
+                  src={imagePreview} 
+                  alt="Preview" 
+                  className="max-h-32 rounded-lg border"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                  onClick={clearSelectedImage}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
             <div className="flex gap-2">
+              {/* Hidden file input */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept={SUPPORTED_IMAGE_TYPES.join(',')}
+                onChange={handleImageSelect}
+                className="hidden"
+              />
+              {/* Image upload button */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sendingMessage}
+              >
+                <ImagePlus className="h-4 w-4" />
+              </Button>
               <Textarea
                 placeholder="Type a message..."
                 value={newMessage}
@@ -454,11 +620,18 @@ const Messages: React.FC = () => {
                 className="min-h-[44px] max-h-32 resize-none"
                 rows={1}
               />
-              <Button onClick={sendMessage} disabled={!newMessage.trim() || sendingMessage} size="icon" className="shrink-0"><Send className="h-4 w-4" /></Button>
+              <Button 
+                onClick={sendMessage} 
+                disabled={(!newMessage.trim() && !selectedImage) || sendingMessage} 
+                size="icon" 
+                className="shrink-0"
+              >
+                {uploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
         ) : (
-          <div className="border-t p-4 text-center text-sm text-muted-foreground">Only admins can post in announcement channels</div>
+          <div className="border-t p-4 text-center text-sm text-muted-foreground">You don't have permission to send messages in this channel</div>
         )}
       </div>
     );
@@ -555,6 +728,29 @@ const Messages: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Image Preview Dialog */}
+      <Dialog open={!!previewImageUrl} onOpenChange={() => setPreviewImageUrl(null)}>
+        <DialogContent className="max-w-4xl p-2">
+          <div className="relative">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 right-2 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full"
+              onClick={() => setPreviewImageUrl(null)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            {previewImageUrl && (
+              <img 
+                src={previewImageUrl} 
+                alt="Preview" 
+                className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

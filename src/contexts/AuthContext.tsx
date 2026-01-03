@@ -11,6 +11,7 @@ export interface AuthUser {
   role: AppRole;
   doctorId?: string;
   name?: string;
+  eligibleDuties?: string[];
 }
 
 interface AuthContextType {
@@ -49,18 +50,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // If doctor, fetch doctor profile
       let doctorId: string | undefined;
       let name: string | undefined;
+      let eligibleDuties: string[] | undefined;
 
       const { data: doctorData } = await supabase
         .from('doctors')
-        .select('id, name')
+        .select('id, name, eligible_duties')
         .eq('user_id', userId)
         .maybeSingle();
 
       if (doctorData) {
         doctorId = doctorData.id;
         name = doctorData.name;
+        eligibleDuties = doctorData.eligible_duties || [];
       } else if (role === 'admin') {
         name = 'Administrator';
+        eligibleDuties = []; // Admin sees all
       }
 
       return {
@@ -69,6 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role,
         doctorId,
         name: name || userEmail,
+        eligibleDuties,
       };
     } catch (error) {
       console.error('Error in fetchUserRole:', error);
