@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { 
   Calendar, 
   BookOpen, 
@@ -86,12 +88,13 @@ const departments = [
 const Academic: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 0, 1)); // January 2026
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
   
   // Form data with new fields
@@ -276,12 +279,13 @@ const Academic: React.FC = () => {
       material_urls: classItem.material_urls?.join('\n') || '',
       url_display_texts: classItem.url_display_texts?.join('\n') || ''
     });
+    setIsDetailSheetOpen(false);
     setIsEditDialogOpen(true);
   };
 
   const handleViewDetails = (classItem: ClassItem) => {
     setSelectedClass(classItem);
-    setIsDetailDialogOpen(true);
+    setIsDetailSheetOpen(true);
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -340,7 +344,7 @@ const Academic: React.FC = () => {
         />
       </div>
       
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label>Lecture Type *</Label>
           <Select
@@ -377,7 +381,7 @@ const Academic: React.FC = () => {
         </div>
       </div>
       
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         <div className="space-y-2">
           <Label>Date *</Label>
           <Input
@@ -388,7 +392,7 @@ const Academic: React.FC = () => {
           />
         </div>
         <div className="space-y-2">
-          <Label>Start Time</Label>
+          <Label>Start</Label>
           <Input
             type="time"
             value={formData.start_time}
@@ -396,7 +400,7 @@ const Academic: React.FC = () => {
           />
         </div>
         <div className="space-y-2">
-          <Label>End Time</Label>
+          <Label>End</Label>
           <Input
             type="time"
             value={formData.end_time}
@@ -414,7 +418,7 @@ const Academic: React.FC = () => {
         />
       </div>
       
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label>Speaker</Label>
           <Input
@@ -447,22 +451,22 @@ const Academic: React.FC = () => {
         <Textarea
           value={formData.material_urls}
           onChange={(e) => setFormData({ ...formData, material_urls: e.target.value })}
-          placeholder="https://drive.google.com/file/...&#10;https://drive.google.com/file/..."
-          rows={3}
+          placeholder="https://drive.google.com/file/..."
+          rows={2}
         />
       </div>
       
       <div className="space-y-2">
-        <Label>URL Display Texts (one per line, matching URLs order)</Label>
+        <Label>URL Display Texts (one per line)</Label>
         <Textarea
           value={formData.url_display_texts}
           onChange={(e) => setFormData({ ...formData, url_display_texts: e.target.value })}
-          placeholder="Document 1.pdf&#10;Document 2.pdf"
-          rows={3}
+          placeholder="Document 1.pdf"
+          rows={2}
         />
       </div>
       
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label>Location</Label>
           <Input
@@ -491,11 +495,11 @@ const Academic: React.FC = () => {
         />
       </div>
       
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={() => isEdit ? setIsEditDialogOpen(false) : setIsAddDialogOpen(false)}>
+      <DialogFooter className="flex-col sm:flex-row gap-2 pt-4">
+        <Button type="button" variant="outline" onClick={() => isEdit ? setIsEditDialogOpen(false) : setIsAddDialogOpen(false)} className="w-full sm:w-auto">
           Cancel
         </Button>
-        <Button type="submit" disabled={isEdit ? updateClassMutation.isPending : addClassMutation.isPending}>
+        <Button type="submit" disabled={isEdit ? updateClassMutation.isPending : addClassMutation.isPending} className="w-full sm:w-auto">
           {isEdit 
             ? (updateClassMutation.isPending ? 'Saving...' : 'Save Changes')
             : (addClassMutation.isPending ? 'Adding...' : 'Add Class')
@@ -505,28 +509,139 @@ const Academic: React.FC = () => {
     </form>
   );
 
-  return (
-    <div className="space-y-6 pb-24">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+  // Class Detail Content - shared for Sheet (mobile) and Dialog (desktop)
+  const ClassDetailContent = () => {
+    if (!selectedClass) return null;
+    
+    return (
+      <div className="space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <GraduationCap className="w-6 h-6 text-primary" />
-            Academic Schedule
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <Badge className={cn('border', classTypeColors[selectedClass.class_type])}>
+              {classTypeLabels[selectedClass.class_type]}
+            </Badge>
+            {selectedClass.department && (
+              <Badge variant="outline">
+                <Building className="w-3 h-3 mr-1" />
+                {selectedClass.department}
+              </Badge>
+            )}
+          </div>
+          <h3 className="text-lg font-semibold break-words">{selectedClass.title}</h3>
+          {selectedClass.topic && selectedClass.topic !== selectedClass.title && (
+            <p className="text-muted-foreground mt-1 break-words">{selectedClass.topic}</p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-muted-foreground">Date</p>
+            <p className="font-medium">{format(parseISO(selectedClass.class_date), 'EEE, MMM d, yyyy')}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Time</p>
+            <p className="font-medium">{selectedClass.start_time} - {selectedClass.end_time}</p>
+          </div>
+        </div>
+
+        {(selectedClass.speaker_name || selectedClass.moderator_name) && (
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            {selectedClass.speaker_name && (
+              <div>
+                <p className="text-muted-foreground">Speaker</p>
+                <p className="font-medium break-words">{selectedClass.speaker_name}</p>
+              </div>
+            )}
+            {selectedClass.moderator_name && (
+              <div>
+                <p className="text-muted-foreground">Moderator</p>
+                <p className="font-medium break-words">{selectedClass.moderator_name}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {selectedClass.study_material && (
+          <div className="text-sm">
+            <p className="text-muted-foreground">Study Material</p>
+            <p className="font-medium break-words">{selectedClass.study_material}</p>
+          </div>
+        )}
+
+        {selectedClass.material_urls && selectedClass.material_urls.length > 0 && (
+          <div>
+            <p className="text-sm text-muted-foreground mb-2">Reference Materials</p>
+            <div className="space-y-2">
+              {selectedClass.material_urls.map((url, index) => (
+                <a
+                  key={index}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 p-2 rounded-lg border bg-accent/30 hover:bg-accent/50 transition-colors text-sm"
+                >
+                  <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="flex-1 truncate">
+                    {selectedClass.url_display_texts?.[index] || `Material ${index + 1}`}
+                  </span>
+                  <ExternalLink className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {selectedClass.location && (
+          <div className="text-sm">
+            <p className="text-muted-foreground">Location</p>
+            <p className="font-medium">{selectedClass.location}</p>
+          </div>
+        )}
+
+        {selectedClass.notes && (
+          <div className="text-sm">
+            <p className="text-muted-foreground">Notes</p>
+            <p className="font-medium break-words">{selectedClass.notes}</p>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-4">
+          <Button variant="outline" onClick={() => setIsDetailSheetOpen(false)} className="flex-1">
+            Close
+          </Button>
+          {isAdmin && (
+            <Button onClick={() => handleEdit(selectedClass)} className="flex-1">
+              <Pencil className="w-4 h-4 mr-1" />
+              Edit
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4 pb-20 md:pb-6">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 md:w-6 md:h-6 text-primary flex-shrink-0" />
+            <span className="truncate">Academic</span>
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            DNB Classes, Grand Rounds & Academic Activities
+          <p className="text-muted-foreground text-xs md:text-sm mt-0.5 truncate">
+            Classes & Academic Activities
           </p>
         </div>
         {isAdmin && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-2">
+              <Button size="sm" className="gap-1 flex-shrink-0">
                 <Plus className="w-4 h-4" />
-                Add Class
+                <span className="hidden sm:inline">Add</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Class</DialogTitle>
               </DialogHeader>
@@ -536,59 +651,59 @@ const Academic: React.FC = () => {
         )}
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/20">
-                <BookOpen className="w-5 h-5 text-blue-600" />
+      {/* Stats Cards - Horizontal scroll on mobile */}
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20 flex-shrink-0 min-w-[140px]">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-blue-500/20">
+                <BookOpen className="w-4 h-4 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{stats.total}</p>
-                <p className="text-xs text-muted-foreground">Total This Month</p>
+                <p className="text-xl font-bold text-foreground">{stats.total}</p>
+                <p className="text-xs text-muted-foreground">Total</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-500/20">
-                <Users className="w-5 h-5 text-purple-600" />
+        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20 flex-shrink-0 min-w-[140px]">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-purple-500/20">
+                <Users className="w-4 h-4 text-purple-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{stats.grandRounds}</p>
+                <p className="text-xl font-bold text-foreground">{stats.grandRounds}</p>
                 <p className="text-xs text-muted-foreground">Grand Rounds</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-blue-400/10 to-blue-500/5 border-blue-400/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-400/20">
-                <GraduationCap className="w-5 h-5 text-blue-500" />
+        <Card className="bg-gradient-to-br from-blue-400/10 to-blue-500/5 border-blue-400/20 flex-shrink-0 min-w-[140px]">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-blue-400/20">
+                <GraduationCap className="w-4 h-4 text-blue-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{stats.lectures}</p>
+                <p className="text-xl font-bold text-foreground">{stats.lectures}</p>
                 <p className="text-xs text-muted-foreground">Lectures</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-500/20">
-                <Calendar className="w-5 h-5 text-green-600" />
+        <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20 flex-shrink-0 min-w-[140px]">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-green-500/20">
+                <Calendar className="w-4 h-4 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{stats.casePresentations}</p>
-                <p className="text-xs text-muted-foreground">Case Presentations</p>
+                <p className="text-xl font-bold text-foreground">{stats.casePresentations}</p>
+                <p className="text-xs text-muted-foreground">Cases</p>
               </div>
             </div>
           </CardContent>
@@ -597,16 +712,17 @@ const Academic: React.FC = () => {
 
       {/* Calendar */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-2 px-3 pt-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-primary" />
-              {format(currentMonth, 'MMMM yyyy')}
+            <CardTitle className="text-base flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-primary" />
+              {format(currentMonth, 'MMM yyyy')}
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <Button
                 variant="outline"
                 size="icon"
+                className="h-8 w-8"
                 onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -614,6 +730,7 @@ const Academic: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
+                className="h-8 px-2 text-xs"
                 onClick={() => setCurrentMonth(new Date())}
               >
                 Today
@@ -621,6 +738,7 @@ const Academic: React.FC = () => {
               <Button
                 variant="outline"
                 size="icon"
+                className="h-8 w-8"
                 onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
               >
                 <ChevronRight className="w-4 h-4" />
@@ -628,22 +746,22 @@ const Academic: React.FC = () => {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-2 pb-3">
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading schedule...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading...</div>
           ) : (
             <>
               {/* Day headers */}
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="text-center text-xs font-medium text-muted-foreground py-2">
+              <div className="grid grid-cols-7 gap-0.5 mb-1">
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                  <div key={i} className="text-center text-xs font-medium text-muted-foreground py-1">
                     {day}
                   </div>
                 ))}
               </div>
               
               {/* Calendar grid */}
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-0.5">
                 {/* Empty cells for days before month starts */}
                 {Array.from({ length: startOfMonth(currentMonth).getDay() }).map((_, i) => (
                   <div key={`empty-${i}`} className="aspect-square" />
@@ -660,32 +778,32 @@ const Academic: React.FC = () => {
                       key={day.toISOString()}
                       onClick={() => setSelectedDate(day)}
                       className={cn(
-                        'aspect-square p-1 rounded-lg transition-all relative flex flex-col items-center justify-start',
-                        'hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-primary/50',
-                        isSelected && 'bg-primary/20 ring-2 ring-primary',
+                        'aspect-square p-0.5 rounded-md transition-all relative flex flex-col items-center justify-start',
+                        'hover:bg-accent/50 focus:outline-none focus:ring-1 focus:ring-primary/50',
+                        isSelected && 'bg-primary/20 ring-1 ring-primary',
                         isToday(day) && !isSelected && 'bg-accent'
                       )}
                     >
                       <span className={cn(
-                        'text-sm font-medium',
+                        'text-xs font-medium',
                         isToday(day) && 'text-primary font-bold'
                       )}>
                         {format(day, 'd')}
                       </span>
                       {hasClasses && (
-                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
-                          {dayClasses.slice(0, 3).map((c, i) => (
+                        <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">
+                          {dayClasses.slice(0, 2).map((c, i) => (
                             <div 
                               key={i} 
                               className={cn(
-                                'w-1.5 h-1.5 rounded-full',
+                                'w-1 h-1 rounded-full',
                                 c.class_type === 'case_presentation' ? 'bg-green-500' :
                                 c.class_type === 'grand_rounds' ? 'bg-purple-500' : 'bg-blue-500'
                               )} 
                             />
                           ))}
-                          {dayClasses.length > 3 && (
-                            <span className="text-[8px] text-muted-foreground">+{dayClasses.length - 3}</span>
+                          {dayClasses.length > 2 && (
+                            <span className="text-[6px] text-muted-foreground">+</span>
                           )}
                         </div>
                       )}
@@ -701,26 +819,26 @@ const Academic: React.FC = () => {
       {/* Selected Date Classes */}
       {selectedDate && (
         <Card>
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-2 px-3 pt-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">
-                {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+              <CardTitle className="text-sm font-medium">
+                {format(selectedDate, 'EEE, MMM d')}
               </CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setSelectedDate(null)}>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedDate(null)}>
                 <X className="w-4 h-4" />
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-3 pb-3">
             {selectedDateClasses.length === 0 ? (
-              <div className="text-center py-8">
-                <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">No classes scheduled for this day</p>
+              <div className="text-center py-6">
+                <Calendar className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No classes scheduled</p>
                 {isAdmin && (
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="mt-3"
+                    className="mt-2"
                     onClick={() => {
                       setFormData({ ...formData, class_date: format(selectedDate, 'yyyy-MM-dd') });
                       setIsAddDialogOpen(true);
@@ -732,87 +850,64 @@ const Academic: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {selectedDateClasses.map(classItem => (
                   <div
                     key={classItem.id}
-                    className="p-4 rounded-lg border bg-card hover:bg-accent/30 transition-colors cursor-pointer"
+                    className="p-3 rounded-lg border bg-card hover:bg-accent/30 transition-colors cursor-pointer"
                     onClick={() => handleViewDetails(classItem)}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <Badge className={cn('border', classTypeColors[classItem.class_type])}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                          <Badge className={cn('border text-xs px-1.5 py-0', classTypeColors[classItem.class_type])}>
                             {classTypeLabels[classItem.class_type]}
                           </Badge>
-                          {classItem.department && (
-                            <Badge variant="outline" className="text-xs">
-                              <Building className="w-3 h-3 mr-1" />
-                              {classItem.department}
-                            </Badge>
-                          )}
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground flex items-center gap-0.5">
                             <Clock className="w-3 h-3" />
-                            {classItem.start_time} - {classItem.end_time}
+                            {classItem.start_time}
                           </span>
                         </div>
-                        <h4 className="font-semibold text-foreground">{classItem.title}</h4>
-                        {classItem.topic && classItem.topic !== classItem.title && (
-                          <p className="text-sm text-muted-foreground mt-1">{classItem.topic}</p>
-                        )}
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-                          {classItem.speaker_name && (
-                            <p className="text-xs text-muted-foreground flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              Speaker: {classItem.speaker_name}
-                            </p>
-                          )}
-                          {classItem.moderator_name && (
-                            <p className="text-xs text-muted-foreground flex items-center gap-1">
-                              <User className="w-3 h-3" />
-                              Moderator: {classItem.moderator_name}
-                            </p>
-                          )}
-                        </div>
-                        {classItem.material_urls && classItem.material_urls.length > 0 && (
-                          <div className="mt-2 flex items-center gap-1 text-xs text-primary">
-                            <FileText className="w-3 h-3" />
-                            {classItem.material_urls.length} material(s) available
-                          </div>
+                        <h4 className="font-medium text-sm truncate">{classItem.title}</h4>
+                        {classItem.speaker_name && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1 truncate">
+                            <User className="w-3 h-3 flex-shrink-0" />
+                            {classItem.speaker_name}
+                          </p>
                         )}
                       </div>
                       {isAdmin && (
-                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-7 w-7"
                             onClick={() => handleEdit(classItem)}
                           >
-                            <Pencil className="w-4 h-4" />
+                            <Pencil className="w-3.5 h-3.5" />
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent>
+                            <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Delete Class</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Are you sure you want to delete "{classItem.title}"? This action cannot be undone.
+                                  Are you sure you want to delete this class?
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => deleteClassMutation.mutate(classItem.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto"
                                 >
                                   Delete
                                 </AlertDialogAction>
@@ -830,126 +925,36 @@ const Academic: React.FC = () => {
         </Card>
       )}
 
-      {/* Class Details Dialog */}
-      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <GraduationCap className="w-5 h-5 text-primary" />
-              Class Details
-            </DialogTitle>
-          </DialogHeader>
-          {selectedClass && (
-            <ScrollArea className="max-h-[70vh] pr-4">
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <Badge className={cn('border', classTypeColors[selectedClass.class_type])}>
-                      {classTypeLabels[selectedClass.class_type]}
-                    </Badge>
-                    {selectedClass.department && (
-                      <Badge variant="outline">
-                        <Building className="w-3 h-3 mr-1" />
-                        {selectedClass.department}
-                      </Badge>
-                    )}
-                  </div>
-                  <h3 className="text-lg font-semibold">{selectedClass.title}</h3>
-                  {selectedClass.topic && selectedClass.topic !== selectedClass.title && (
-                    <p className="text-muted-foreground mt-1">{selectedClass.topic}</p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Date</p>
-                    <p className="font-medium">{format(parseISO(selectedClass.class_date), 'EEEE, MMMM d, yyyy')}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Time</p>
-                    <p className="font-medium">{selectedClass.start_time} - {selectedClass.end_time}</p>
-                  </div>
-                </div>
-
-                {(selectedClass.speaker_name || selectedClass.moderator_name) && (
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    {selectedClass.speaker_name && (
-                      <div>
-                        <p className="text-muted-foreground">Speaker</p>
-                        <p className="font-medium">{selectedClass.speaker_name}</p>
-                      </div>
-                    )}
-                    {selectedClass.moderator_name && (
-                      <div>
-                        <p className="text-muted-foreground">Moderator</p>
-                        <p className="font-medium">{selectedClass.moderator_name}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {selectedClass.study_material && (
-                  <div className="text-sm">
-                    <p className="text-muted-foreground">Study Material</p>
-                    <p className="font-medium">{selectedClass.study_material}</p>
-                  </div>
-                )}
-
-                {selectedClass.material_urls && selectedClass.material_urls.length > 0 && (
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-2">Reference Materials & Links</p>
-                    <div className="space-y-2">
-                      {selectedClass.material_urls.map((url, index) => (
-                        <a
-                          key={index}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 p-3 rounded-lg border bg-accent/30 hover:bg-accent/50 transition-colors text-sm group"
-                        >
-                          <FileText className="w-4 h-4 text-primary shrink-0" />
-                          <span className="flex-1 truncate">
-                            {selectedClass.url_display_texts?.[index] || `Material ${index + 1}`}
-                          </span>
-                          <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {selectedClass.location && (
-                  <div className="text-sm">
-                    <p className="text-muted-foreground">Location</p>
-                    <p className="font-medium">{selectedClass.location}</p>
-                  </div>
-                )}
-
-                {selectedClass.notes && (
-                  <div className="text-sm">
-                    <p className="text-muted-foreground">Notes</p>
-                    <p className="font-medium">{selectedClass.notes}</p>
-                  </div>
-                )}
-              </div>
+      {/* Class Details Sheet (Mobile) / Dialog (Desktop) */}
+      {isMobile ? (
+        <Sheet open={isDetailSheetOpen} onOpenChange={setIsDetailSheetOpen}>
+          <SheetContent side="bottom" className="h-[85vh] rounded-t-xl">
+            <SheetHeader className="pb-4">
+              <SheetTitle className="flex items-center gap-2">
+                <GraduationCap className="w-5 h-5 text-primary" />
+                Class Details
+              </SheetTitle>
+            </SheetHeader>
+            <ScrollArea className="h-[calc(85vh-100px)]">
+              <ClassDetailContent />
             </ScrollArea>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDetailDialogOpen(false)}>
-              Close
-            </Button>
-            {isAdmin && selectedClass && (
-              <Button onClick={() => {
-                setIsDetailDialogOpen(false);
-                handleEdit(selectedClass);
-              }}>
-                <Pencil className="w-4 h-4 mr-1" />
-                Edit
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={isDetailSheetOpen} onOpenChange={setIsDetailSheetOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <GraduationCap className="w-5 h-5 text-primary" />
+                Class Details
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="max-h-[70vh] pr-4">
+              <ClassDetailContent />
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
@@ -959,7 +964,7 @@ const Academic: React.FC = () => {
           resetForm();
         }
       }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Class</DialogTitle>
           </DialogHeader>

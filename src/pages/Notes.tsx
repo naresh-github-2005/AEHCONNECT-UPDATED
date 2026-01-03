@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,8 @@ import {
   ArrowLeft,
   Calendar,
   ExternalLink,
+  Menu,
+  Home,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -49,6 +51,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { format } from 'date-fns';
 
 interface NoteFolder {
@@ -74,6 +77,7 @@ interface Note {
 const Notes: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   // State
   const [folders, setFolders] = useState<NoteFolder[]>([]);
@@ -82,6 +86,8 @@ const Notes: React.FC = () => {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [noteDetailOpen, setNoteDetailOpen] = useState(false);
 
   // Dialog states
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
@@ -295,6 +301,7 @@ const Notes: React.FC = () => {
       setDeleteTarget(null);
       if (selectedNote?.id === deleteTarget.id) {
         setSelectedNote(null);
+        setNoteDetailOpen(false);
       }
       fetchNotes();
     } catch (error) {
@@ -308,6 +315,7 @@ const Notes: React.FC = () => {
     setEditingFolder(null);
     setFolderName('');
     setFolderDialogOpen(true);
+    setSidebarOpen(false);
   };
 
   const openEditFolderDialog = (folder: NoteFolder) => {
@@ -332,6 +340,7 @@ const Notes: React.FC = () => {
     setNoteDriveLinks(note.drive_links || []);
     setNewDriveLink('');
     setNoteDialogOpen(true);
+    setNoteDetailOpen(false);
   };
 
   const closeNoteDialog = () => {
@@ -370,6 +379,20 @@ const Notes: React.FC = () => {
     setExpandedFolders(newExpanded);
   };
 
+  // Handle note selection
+  const handleNoteSelect = (note: Note) => {
+    setSelectedNote(note);
+    if (isMobile) {
+      setNoteDetailOpen(true);
+    }
+  };
+
+  // Handle folder navigation
+  const handleFolderNavigate = (folderId: string | null) => {
+    setCurrentFolderId(folderId);
+    setSidebarOpen(false);
+  };
+
   // Render folder tree item
   const renderFolderTreeItem = (folder: NoteFolder, level: number = 0) => {
     const subfolders = folders.filter(f => f.parent_folder_id === folder.id);
@@ -380,11 +403,11 @@ const Notes: React.FC = () => {
     return (
       <div key={folder.id}>
         <div
-          className={`flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted transition-colors ${
+          className={`flex items-center gap-1 px-2 py-2 rounded-md cursor-pointer hover:bg-muted transition-colors ${
             isSelected ? 'bg-primary/10 text-primary' : ''
           }`}
-          style={{ paddingLeft: `${8 + level * 16}px` }}
-          onClick={() => setCurrentFolderId(folder.id)}
+          style={{ paddingLeft: `${8 + level * 12}px` }}
+          onClick={() => handleFolderNavigate(folder.id)}
         >
           {hasSubfolders ? (
             <button
@@ -403,7 +426,7 @@ const Notes: React.FC = () => {
           ) : (
             <span className="w-5" />
           )}
-          <Folder className="h-4 w-4 text-amber-500" />
+          <Folder className="h-4 w-4 text-amber-500 flex-shrink-0" />
           <span className="text-sm truncate flex-1">{folder.name}</span>
         </div>
         {hasSubfolders && isExpanded && (
@@ -411,6 +434,103 @@ const Notes: React.FC = () => {
             {subfolders.map(sf => renderFolderTreeItem(sf, level + 1))}
           </div>
         )}
+      </div>
+    );
+  };
+
+  // Sidebar content (shared between desktop and mobile)
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between p-3 border-b">
+        <h2 className="font-semibold flex items-center gap-2">
+          <Folder className="h-5 w-5" />
+          Folders
+        </h2>
+        <Button size="sm" variant="outline" onClick={openCreateFolderDialog}>
+          <FolderPlus className="h-4 w-4" />
+        </Button>
+      </div>
+      <ScrollArea className="flex-1">
+        <div className="p-2">
+          {/* Root level */}
+          <div
+            className={`flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer hover:bg-muted transition-colors ${
+              currentFolderId === null ? 'bg-primary/10 text-primary' : ''
+            }`}
+            onClick={() => handleFolderNavigate(null)}
+          >
+            <Home className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <span className="text-sm">All Notes</span>
+          </div>
+          
+          {/* Folder tree */}
+          {buildFolderTree(null).map(folder => renderFolderTreeItem(folder))}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+
+  // Note detail content (shared between desktop and mobile)
+  const NoteDetailContent = () => {
+    if (!selectedNote) return null;
+    
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between p-3 border-b">
+          <h2 className="font-semibold truncate flex-1 pr-2">{selectedNote.title}</h2>
+          <Button size="sm" variant="ghost" onClick={() => { setSelectedNote(null); setNoteDetailOpen(false); }}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-4">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">Created</p>
+              <p className="text-sm">{format(new Date(selectedNote.created_at), 'MMMM d, yyyy h:mm a')}</p>
+            </div>
+            
+            {selectedNote.updated_at !== selectedNote.created_at && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Last Updated</p>
+                <p className="text-sm">{format(new Date(selectedNote.updated_at), 'MMMM d, yyyy h:mm a')}</p>
+              </div>
+            )}
+
+            {selectedNote.description && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Description</p>
+                <p className="text-sm whitespace-pre-wrap break-words">{selectedNote.description}</p>
+              </div>
+            )}
+
+            {selectedNote.drive_links && selectedNote.drive_links.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Drive Links</p>
+                <div className="space-y-2">
+                  {selectedNote.drive_links.map((link, idx) => (
+                    <a
+                      key={idx}
+                      href={link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-2 border rounded-md hover:bg-muted transition-colors text-sm"
+                    >
+                      <ExternalLink className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                      <span className="truncate flex-1 break-all">{link}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="pt-4">
+              <Button size="sm" variant="outline" className="w-full" onClick={() => openEditNoteDialog(selectedNote)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit Note
+              </Button>
+            </div>
+          </div>
+        </ScrollArea>
       </div>
     );
   };
@@ -424,289 +544,249 @@ const Notes: React.FC = () => {
   }
 
   const folderPath = getFolderPath(currentFolderId);
+  const currentFolderName = currentFolderId 
+    ? folders.find(f => f.id === currentFolderId)?.name || 'Folder'
+    : 'All Notes';
 
   return (
-    <div className="h-[calc(100vh-180px)] flex gap-4">
-      {/* Sidebar - Folder Tree */}
-      <Card className="w-64 flex flex-col">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Folder className="h-5 w-5" />
-              Folders
-            </CardTitle>
-            <Button size="sm" variant="outline" onClick={openCreateFolderDialog}>
-              <FolderPlus className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <Separator />
-        <ScrollArea className="flex-1">
-          <div className="p-2">
-            {/* Root level */}
-            <div
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted transition-colors ${
-                currentFolderId === null ? 'bg-primary/10 text-primary' : ''
-              }`}
-              onClick={() => setCurrentFolderId(null)}
+    <div className="flex flex-col h-[calc(100vh-160px)] pb-16 md:pb-0">
+      {/* Mobile Header */}
+      <div className="flex items-center gap-2 p-3 border-b bg-background sticky top-0 z-10">
+        {/* Menu button for mobile */}
+        {isMobile && (
+          <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+            <SheetTrigger asChild>
+              <Button size="icon" variant="ghost" className="flex-shrink-0">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[280px] p-0">
+              <SidebarContent />
+            </SheetContent>
+          </Sheet>
+        )}
+        
+        {/* Back button and breadcrumb */}
+        <div className="flex items-center gap-1 flex-1 min-w-0">
+          {currentFolderId && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="flex-shrink-0 h-8 w-8"
+              onClick={() => {
+                const parent = folders.find(f => f.id === currentFolderId)?.parent_folder_id || null;
+                setCurrentFolderId(parent);
+              }}
             >
-              <Folder className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">All Notes</span>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
+          
+          {/* Mobile: Just show current folder name */}
+          {isMobile ? (
+            <span className="font-medium truncate">{currentFolderName}</span>
+          ) : (
+            /* Desktop: Show full breadcrumb */
+            <div className="flex items-center gap-1 text-sm overflow-hidden">
+              <span
+                className="cursor-pointer hover:text-primary flex-shrink-0"
+                onClick={() => setCurrentFolderId(null)}
+              >
+                Root
+              </span>
+              {folderPath.map((folder) => (
+                <React.Fragment key={folder.id}>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span
+                    className="cursor-pointer hover:text-primary truncate"
+                    onClick={() => setCurrentFolderId(folder.id)}
+                  >
+                    {folder.name}
+                  </span>
+                </React.Fragment>
+              ))}
             </div>
-            
-            {/* Folder tree */}
-            {buildFolderTree(null).map(folder => renderFolderTreeItem(folder))}
-          </div>
-        </ScrollArea>
-      </Card>
+          )}
+        </div>
+        
+        {/* Action buttons */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <Button size="sm" variant="outline" onClick={openCreateFolderDialog} className="hidden sm:flex">
+            <FolderPlus className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">Folder</span>
+          </Button>
+          <Button size="sm" onClick={openCreateNoteDialog}>
+            <FilePlus className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">Note</span>
+          </Button>
+        </div>
+      </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col gap-4">
-        {/* Breadcrumb and Actions */}
-        <Card className="p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {currentFolderId && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    const parent = folders.find(f => f.id === currentFolderId)?.parent_folder_id || null;
-                    setCurrentFolderId(parent);
-                  }}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              )}
-              <div className="flex items-center gap-1 text-sm">
-                <span
-                  className="cursor-pointer hover:text-primary"
-                  onClick={() => setCurrentFolderId(null)}
-                >
-                  Root
-                </span>
-                {folderPath.map((folder, idx) => (
-                  <React.Fragment key={folder.id}>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    <span
-                      className="cursor-pointer hover:text-primary"
-                      onClick={() => setCurrentFolderId(folder.id)}
-                    >
-                      {folder.name}
-                    </span>
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={openCreateFolderDialog}>
-                <FolderPlus className="h-4 w-4 mr-1" />
-                New Folder
-              </Button>
-              <Button size="sm" onClick={openCreateNoteDialog}>
-                <FilePlus className="h-4 w-4 mr-1" />
-                New Note
-              </Button>
-            </div>
-          </div>
-        </Card>
+      {/* Main content area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Desktop Sidebar */}
+        {!isMobile && (
+          <Card className="w-56 flex-shrink-0 rounded-none border-t-0 border-l-0 border-b-0">
+            <SidebarContent />
+          </Card>
+        )}
 
-        {/* Content Grid */}
-        <div className="flex-1 flex gap-4">
+        {/* Content area */}
+        <div className="flex-1 flex overflow-hidden">
           {/* Folders and Notes List */}
-          <Card className="flex-1">
-            <ScrollArea className="h-[calc(100vh-320px)]">
-              <div className="p-4 space-y-4">
-                {/* Subfolders */}
-                {currentSubfolders.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-2">Folders</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {currentSubfolders.map(folder => (
-                        <div
-                          key={folder.id}
-                          className="group relative p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                          onClick={() => setCurrentFolderId(folder.id)}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Folder className="h-8 w-8 text-amber-500" />
-                            <span className="text-sm font-medium truncate">{folder.name}</span>
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                className="absolute top-2 right-2 p-1 rounded hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditFolderDialog(folder); }}>
-                                <Pencil className="h-4 w-4 mr-2" />
-                                Rename
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={(e) => { e.stopPropagation(); confirmDelete('folder', folder.id); }}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+          <ScrollArea className="flex-1">
+            <div className="p-3 space-y-4">
+              {/* Subfolders */}
+              {currentSubfolders.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Folders</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                    {currentSubfolders.map(folder => (
+                      <div
+                        key={folder.id}
+                        className="group relative p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => setCurrentFolderId(folder.id)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Folder className="h-6 w-6 text-amber-500 flex-shrink-0" />
+                          <span className="text-sm font-medium truncate">{folder.name}</span>
                         </div>
-                      ))}
-                    </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="absolute top-2 right-2 p-1 rounded hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditFolderDialog(folder); }}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => { e.stopPropagation(); confirmDelete('folder', folder.id); }}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Notes */}
-                {currentNotes.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-2">Notes</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {currentNotes.map(note => (
-                        <div
-                          key={note.id}
-                          className={`group relative p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors ${
-                            selectedNote?.id === note.id ? 'ring-2 ring-primary' : ''
-                          }`}
-                          onClick={() => setSelectedNote(note)}
-                        >
-                          <div className="flex items-start gap-2">
-                            <FileText className="h-5 w-5 text-blue-500 mt-0.5" />
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-sm truncate">{note.title}</h4>
-                              {note.description && (
-                                <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                                  {note.description}
-                                </p>
-                              )}
-                              <div className="flex items-center gap-2 mt-2">
-                                <Badge variant="outline" className="text-xs">
-                                  <Calendar className="h-3 w-3 mr-1" />
-                                  {format(new Date(note.created_at), 'MMM d, yyyy')}
+              {/* Notes */}
+              {currentNotes.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Notes</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {currentNotes.map(note => (
+                      <div
+                        key={note.id}
+                        className={`group relative p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors ${
+                          selectedNote?.id === note.id && !isMobile ? 'ring-2 ring-primary' : ''
+                        }`}
+                        onClick={() => handleNoteSelect(note)}
+                      >
+                        <div className="flex items-start gap-2">
+                          <FileText className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0 overflow-hidden">
+                            <h4 className="font-medium text-sm truncate">{note.title}</h4>
+                            {note.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2 mt-1 break-words">
+                                {note.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                              <Badge variant="outline" className="text-xs">
+                                <Calendar className="h-3 w-3 mr-1" />
+                                {format(new Date(note.created_at), 'MMM d')}
+                              </Badge>
+                              {note.drive_links && note.drive_links.length > 0 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <Link className="h-3 w-3 mr-1" />
+                                  {note.drive_links.length}
                                 </Badge>
-                                {note.drive_links && note.drive_links.length > 0 && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    <Link className="h-3 w-3 mr-1" />
-                                    {note.drive_links.length} link(s)
-                                  </Badge>
-                                )}
-                              </div>
+                              )}
                             </div>
                           </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                className="absolute top-2 right-2 p-1 rounded hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditNoteDialog(note); }}>
-                                <Pencil className="h-4 w-4 mr-2" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={(e) => { e.stopPropagation(); confirmDelete('note', note.id); }}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Empty state */}
-                {currentSubfolders.length === 0 && currentNotes.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                    <Folder className="h-16 w-16 mb-4 opacity-50" />
-                    <p className="text-lg font-medium">This folder is empty</p>
-                    <p className="text-sm">Create a folder or note to get started</p>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </Card>
-
-          {/* Note Detail Panel */}
-          {selectedNote && (
-            <Card className="w-80">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg truncate">{selectedNote.title}</CardTitle>
-                  <Button size="sm" variant="ghost" onClick={() => setSelectedNote(null)}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <Separator />
-              <ScrollArea className="h-[calc(100vh-420px)]">
-                <div className="p-4 space-y-4">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Created</p>
-                    <p className="text-sm">{format(new Date(selectedNote.created_at), 'MMMM d, yyyy h:mm a')}</p>
-                  </div>
-                  
-                  {selectedNote.updated_at !== selectedNote.created_at && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Last Updated</p>
-                      <p className="text-sm">{format(new Date(selectedNote.updated_at), 'MMMM d, yyyy h:mm a')}</p>
-                    </div>
-                  )}
-
-                  {selectedNote.description && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Description</p>
-                      <p className="text-sm whitespace-pre-wrap">{selectedNote.description}</p>
-                    </div>
-                  )}
-
-                  {selectedNote.drive_links && selectedNote.drive_links.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">Drive Links</p>
-                      <div className="space-y-2">
-                        {selectedNote.drive_links.map((link, idx) => (
-                          <a
-                            key={idx}
-                            href={link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 p-2 border rounded-md hover:bg-muted transition-colors text-sm"
-                          >
-                            <ExternalLink className="h-4 w-4 text-blue-500" />
-                            <span className="truncate flex-1">{link}</span>
-                          </a>
-                        ))}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="absolute top-2 right-2 p-1 rounded hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditNoteDialog(note); }}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => { e.stopPropagation(); confirmDelete('note', note.id); }}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                    </div>
-                  )}
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                  <div className="pt-4">
-                    <Button size="sm" variant="outline" className="w-full" onClick={() => openEditNoteDialog(selectedNote)}>
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Edit Note
+              {/* Empty state */}
+              {currentSubfolders.length === 0 && currentNotes.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <Folder className="h-12 w-12 mb-3 opacity-50" />
+                  <p className="text-base font-medium">This folder is empty</p>
+                  <p className="text-sm">Create a folder or note to get started</p>
+                  <div className="flex gap-2 mt-4">
+                    <Button size="sm" variant="outline" onClick={openCreateFolderDialog}>
+                      <FolderPlus className="h-4 w-4 mr-1" />
+                      Folder
+                    </Button>
+                    <Button size="sm" onClick={openCreateNoteDialog}>
+                      <FilePlus className="h-4 w-4 mr-1" />
+                      Note
                     </Button>
                   </div>
                 </div>
-              </ScrollArea>
+              )}
+            </div>
+          </ScrollArea>
+
+          {/* Desktop Note Detail Panel */}
+          {!isMobile && selectedNote && (
+            <Card className="w-72 flex-shrink-0 rounded-none border-t-0 border-r-0 border-b-0">
+              <NoteDetailContent />
             </Card>
           )}
         </div>
       </div>
 
+      {/* Mobile Note Detail Sheet */}
+      {isMobile && (
+        <Sheet open={noteDetailOpen} onOpenChange={setNoteDetailOpen}>
+          <SheetContent side="right" className="w-full sm:w-[400px] p-0">
+            <NoteDetailContent />
+          </SheetContent>
+        </Sheet>
+      )}
+
       {/* Create/Edit Folder Dialog */}
       <Dialog open={folderDialogOpen} onOpenChange={setFolderDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editingFolder ? 'Rename Folder' : 'Create New Folder'}</DialogTitle>
           </DialogHeader>
@@ -722,11 +802,11 @@ const Notes: React.FC = () => {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFolderDialogOpen(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setFolderDialogOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button onClick={editingFolder ? handleUpdateFolder : handleCreateFolder}>
+            <Button onClick={editingFolder ? handleUpdateFolder : handleCreateFolder} className="w-full sm:w-auto">
               {editingFolder ? 'Update' : 'Create'}
             </Button>
           </DialogFooter>
@@ -735,7 +815,7 @@ const Notes: React.FC = () => {
 
       {/* Create/Edit Note Dialog */}
       <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingNote ? 'Edit Note' : 'Create New Note'}</DialogTitle>
           </DialogHeader>
@@ -766,9 +846,10 @@ const Notes: React.FC = () => {
                   value={newDriveLink}
                   onChange={(e) => setNewDriveLink(e.target.value)}
                   placeholder="Paste a drive link"
+                  className="flex-1"
                   onKeyPress={(e) => e.key === 'Enter' && addDriveLink()}
                 />
-                <Button type="button" variant="outline" onClick={addDriveLink}>
+                <Button type="button" variant="outline" onClick={addDriveLink} size="icon">
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -776,12 +857,12 @@ const Notes: React.FC = () => {
                 <div className="mt-2 space-y-1">
                   {noteDriveLinks.map((link, idx) => (
                     <div key={idx} className="flex items-center gap-2 p-2 border rounded-md text-sm">
-                      <Link className="h-4 w-4 text-muted-foreground" />
-                      <span className="truncate flex-1">{link}</span>
+                      <Link className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate flex-1 break-all text-xs">{link}</span>
                       <button
                         type="button"
                         onClick={() => removeDriveLink(idx)}
-                        className="text-destructive hover:text-destructive/80"
+                        className="text-destructive hover:text-destructive/80 flex-shrink-0"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -791,11 +872,11 @@ const Notes: React.FC = () => {
               )}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeNoteDialog}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={closeNoteDialog} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button onClick={editingNote ? handleUpdateNote : handleCreateNote}>
+            <Button onClick={editingNote ? handleUpdateNote : handleCreateNote} className="w-full sm:w-auto">
               {editingNote ? 'Update' : 'Create'}
             </Button>
           </DialogFooter>
@@ -804,7 +885,7 @@ const Notes: React.FC = () => {
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -813,11 +894,11 @@ const Notes: React.FC = () => {
                 : 'This will permanently delete this note.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={deleteTarget?.type === 'folder' ? handleDeleteFolder : handleDeleteNote}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto"
             >
               Delete
             </AlertDialogAction>
