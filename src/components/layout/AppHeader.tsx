@@ -2,7 +2,14 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { Bell, LogOut } from 'lucide-react';
+import { Bell, LogOut, MoreVertical, User, FileText } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface AppHeaderProps {
   title?: string;
@@ -50,13 +57,33 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               <span className="absolute top-2 right-2 w-2 h-2 bg-warning rounded-full" />
             </button>
           )}
-          <button 
-            onClick={handleLogout}
-            className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-red-500/80 transition-colors"
-            title="Logout"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
+          
+          {/* Kebab Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button 
+                className="w-10 h-10 rounded-full bg-primary-foreground/10 flex items-center justify-center hover:bg-primary-foreground/20 transition-colors"
+                title="Menu"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                <User className="w-4 h-4 mr-2" />
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/notes')} className="cursor-pointer">
+                <FileText className="w-4 h-4 mr-2" />
+                Notes
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

@@ -1,41 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { 
-  MessageSquare, 
-  Send, 
-  Plus, 
-  Users, 
-  Calendar,
-  Megaphone,
-  Hash,
-  Clock,
-  Pin,
-  ChevronLeft
-} from 'lucide-react';
-import { format, isToday, isTomorrow, formatDistanceToNow } from 'date-fns';
+import { Checkbox } from '@/components/ui/checkbox';
+import { MessageSquare, Send, Plus, Users, ChevronDown, ChevronRight, Hash, Megaphone } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Channel {
   id: string;
   name: string;
-  channel_type: string;
   description: string | null;
-  duty_date: string | null;
-  duty_type: string | null;
-  is_auto_generated: boolean;
+  channel_type: string;
+  category: string | null;
+  eligible_duties: string[] | null;
   created_at: string;
-  unread_count?: number;
 }
 
 interface Message {
@@ -44,41 +29,98 @@ interface Message {
   sender_id: string | null;
   sender_name: string;
   content: string;
-  message_type: string;
-  is_pinned: boolean;
   created_at: string;
 }
+
+const CHANNEL_CATEGORIES = [
+  { value: 'opd', label: 'OPD', icon: '🏥' },
+  { value: 'ot', label: 'OT', icon: '🔬' },
+  { value: 'ward', label: 'Ward', icon: '🛏️' },
+  { value: 'camp', label: 'Camp', icon: '⛺' },
+  { value: 'daycare', label: 'Daycare', icon: '☀️' },
+  { value: 'physician', label: 'Physician', icon: '👨‍⚕️' },
+  { value: 'block_room', label: 'Block Room', icon: '🚪' },
+  { value: 'night_duty', label: 'Night Duty', icon: '🌙' },
+  { value: 'emergency', label: 'Emergency', icon: '🚨' },
+  { value: 'general', label: 'General', icon: '📢' },
+];
+
+// OPD Units
+const OPD_UNITS = [
+  'Unit 1', 'Unit 2', 'Unit 3', 'Unit 4', 'Free Unit',
+  'Cornea', 'Retina', 'Glaucoma', 'Neuro-Ophthalmology', 'IOL', 'UVEA', 'ORBIT', 'Pediatric'
+];
+
+// OT Specialties
+const OT_SPECIALTIES = [
+  'Cataract OT', 'Cornea OT', 'Retina OT', 'Glaucoma OT', 'Neuro OT', 'ORBIT OT', 'Pediatrics OT', 'IOL OT'
+];
+
+// Camp Types
+const CAMP_TYPES = ['Stay Camp', 'Day Camp'];
+
+// Other Duties
+const OTHER_DUTIES = ['Ward', 'Daycare', 'Physician', 'Block Room', 'Night Duty', 'Emergency'];
+
+// All duty types combined
+const ALL_DUTY_TYPES = [...OPD_UNITS, ...OT_SPECIALTIES, ...CAMP_TYPES, ...OTHER_DUTIES];
 
 const Messages: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  
   const [channels, setChannels] = useState<Channel[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSending, setIsSending] = useState(false);
-  const [showCreateChannel, setShowCreateChannel] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(['general', 'opd', 'ot']);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
-  const [newChannelType, setNewChannelType] = useState('team');
-  const [newChannelDescription, setNewChannelDescription] = useState('');
+  const [newChannelCategory, setNewChannelCategory] = useState('general');
+  const [newChannelDuties, setNewChannelDuties] = useState<string[]>([]);
+  const [newChannelIsAnnouncement, setNewChannelIsAnnouncement] = useState(false);
+  const [myEligibleDuties, setMyEligibleDuties] = useState<string[]>([]);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isAdmin = user?.role === 'admin';
 
-  // Fetch channels
+  // Fetch current doctor's eligible duties
+  useEffect(() => {
+    const fetchMyDuties = async () => {
+      if (!user?.id) return;
+      const { data } = await supabase
+        .from('doctors')
+        .select('eligible_duties')
+        .eq('user_id', user.id)
+        .single();
+      if (data?.eligible_duties) {
+        setMyEligibleDuties(data.eligible_duties);
+      }
+    };
+    fetchMyDuties();
+  }, [user?.id]);
+
   useEffect(() => {
     fetchChannels();
   }, []);
 
-  // Fetch messages when channel changes
   useEffect(() => {
-    if (selectedChannel) {
-      fetchMessages(selectedChannel.id);
-      subscribeToMessages(selectedChannel.id);
-    }
+    if (!selectedChannel) return;
+    const sub = supabase
+      .channel('msg-' + selectedChannel.id)
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: 'channel_id=eq.' + selectedChannel.id },
+        (payload) => {
+          const newMsg = payload.new as Message;
+          setMessages(prev => [...prev, newMsg]);
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(sub); };
   }, [selectedChannel]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -87,20 +129,16 @@ const Messages: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('chat_channels')
-        .select('*')
-        .order('created_at', { ascending: false });
-
+        .select('id, name, description, channel_type, category, eligible_duties, created_at')
+        .order('category')
+        .order('name');
       if (error) throw error;
       setChannels(data || []);
-      
-      // Auto-select first channel
-      if (data && data.length > 0 && !selectedChannel) {
-        setSelectedChannel(data[0]);
-      }
     } catch (error) {
       console.error('Error fetching channels:', error);
+      toast({ title: 'Error', description: 'Failed to load channels', variant: 'destructive' });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -108,10 +146,9 @@ const Messages: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('chat_messages')
-        .select('*')
+        .select('id, channel_id, sender_id, sender_name, content, created_at')
         .eq('channel_id', channelId)
-        .order('created_at', { ascending: true });
-
+        .order('created_at');
       if (error) throw error;
       setMessages(data || []);
     } catch (error) {
@@ -119,380 +156,373 @@ const Messages: React.FC = () => {
     }
   };
 
-  const subscribeToMessages = (channelId: string) => {
-    const channel = supabase
-      .channel(`messages-${channelId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `channel_id=eq.${channelId}`
-        },
-        (payload) => {
-          setMessages(prev => [...prev, payload.new as Message]);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+  const handleSelectChannel = (channel: Channel) => {
+    setSelectedChannel(channel);
+    fetchMessages(channel.id);
   };
 
-  // Check if ID looks like a valid UUID
-  const isValidUUID = (id: string | undefined) => {
-    if (!id) return false;
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(id);
-  };
-
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedChannel || isSending) return;
-
-    setIsSending(true);
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedChannel || !user) return;
+    setSendingMessage(true);
     try {
-      const { error } = await supabase
-        .from('chat_messages')
-        .insert({
-          channel_id: selectedChannel.id,
-          sender_id: isValidUUID(user?.id) ? user?.id : null,
-          sender_name: user?.name || 'Unknown',
-          content: newMessage.trim(),
-          message_type: 'text'
-        });
-
+      const { error } = await supabase.from('chat_messages').insert({
+        channel_id: selectedChannel.id,
+        sender_id: user.id,
+        sender_name: user.name || user.email || 'Unknown',
+        content: newMessage.trim()
+      });
       if (error) throw error;
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
-      toast({
-        title: "Failed to send message",
-        description: "Please try again",
-        variant: "destructive"
-      });
+      toast({ title: 'Error', description: 'Failed to send message', variant: 'destructive' });
     } finally {
-      setIsSending(false);
+      setSendingMessage(false);
     }
   };
 
-  const createChannel = async () => {
-    if (!newChannelName.trim()) return;
-
+  const handleCreateChannel = async () => {
+    if (!newChannelName.trim()) {
+      toast({ title: 'Error', description: 'Channel name is required', variant: 'destructive' });
+      return;
+    }
     try {
-      const { data, error } = await supabase
-        .from('chat_channels')
-        .insert({
-          name: newChannelName.trim(),
-          channel_type: newChannelType,
-          description: newChannelDescription.trim() || null,
-          created_by: user?.id
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      
-      setChannels(prev => [data, ...prev]);
-      setSelectedChannel(data);
-      setShowCreateChannel(false);
-      setNewChannelName('');
-      setNewChannelDescription('');
-      
-      toast({
-        title: "Channel created",
-        description: `#${data.name} is ready for messages`
+      const { error } = await supabase.from('chat_channels').insert({
+        name: newChannelName.trim(),
+        category: newChannelCategory,
+        channel_type: newChannelIsAnnouncement ? 'announcement' : 'department',
+        eligible_duties: newChannelDuties.length > 0 ? newChannelDuties : null,
+        created_by: user?.id
       });
+      if (error) throw error;
+      toast({ title: 'Success', description: 'Channel created successfully' });
+      setCreateDialogOpen(false);
+      setNewChannelName('');
+      setNewChannelCategory('general');
+      setNewChannelDuties([]);
+      setNewChannelIsAnnouncement(false);
+      fetchChannels();
     } catch (error) {
       console.error('Error creating channel:', error);
-      toast({
-        title: "Failed to create channel",
-        description: "Please try again",
-        variant: "destructive"
-      });
+      toast({ title: 'Error', description: 'Failed to create channel', variant: 'destructive' });
     }
   };
 
-  const getChannelIcon = (type: string) => {
-    switch (type) {
-      case 'announcement': return <Megaphone className="w-4 h-4" />;
-      case 'duty': return <Calendar className="w-4 h-4" />;
-      case 'team': return <Users className="w-4 h-4" />;
-      default: return <Hash className="w-4 h-4" />;
-    }
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
   };
 
-  const getChannelBadge = (channel: Channel) => {
-    if (channel.duty_date) {
-      const date = new Date(channel.duty_date);
-      if (isToday(date)) return <Badge variant="destructive" className="text-[10px] px-1.5">Today</Badge>;
-      if (isTomorrow(date)) return <Badge className="bg-amber-500 text-[10px] px-1.5">Tomorrow</Badge>;
-    }
-    if (channel.channel_type === 'announcement') {
-      return <Badge variant="secondary" className="text-[10px] px-1.5">Announcement</Badge>;
-    }
-    return null;
+  const toggleDuty = (duty: string) => {
+    setNewChannelDuties(prev => prev.includes(duty) ? prev.filter(d => d !== duty) : [...prev, duty]);
   };
 
-  const formatMessageTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    if (isToday(date)) {
-      return format(date, 'h:mm a');
-    }
-    return format(date, 'MMM d, h:mm a');
+  const filteredChannels = useMemo(() => {
+    if (isAdmin) return channels;
+    return channels.filter(ch => {
+      if (!ch.eligible_duties || ch.eligible_duties.length === 0) return true;
+      return ch.eligible_duties.some(d => myEligibleDuties.includes(d));
+    });
+  }, [channels, isAdmin, myEligibleDuties]);
+
+  const channelsByCategory = useMemo(() => {
+    const grouped: Record<string, Channel[]> = {};
+    filteredChannels.forEach(ch => {
+      const cat = ch.category || 'general';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(ch);
+    });
+    return grouped;
+  }, [filteredChannels]);
+
+  const formatTime = (d: string) => new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  
+  const formatDate = (d: string) => {
+    const date = new Date(d);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === today.toDateString()) return 'Today';
+    if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="p-4 flex items-center justify-center h-[calc(100vh-200px)]">
+      <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="h-[calc(100vh-140px)] flex flex-col">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-primary" />
-              Messages
-            </h1>
-            <p className="text-caption text-muted-foreground">
-              Team communication & duty channels
-            </p>
+    <div className="h-[calc(100vh-180px)] flex gap-4">
+      <Card className="w-72 flex flex-col">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Channels
+            </CardTitle>
+            {isAdmin && (
+              <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline"><Plus className="h-4 w-4" /></Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Create New Channel</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-4">
+                    <div>
+                      <label className="text-sm font-medium">Channel Name</label>
+                      <Input
+                        value={newChannelName}
+                        onChange={(e) => setNewChannelName(e.target.value)}
+                        placeholder="Enter channel name"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Category</label>
+                      <Select value={newChannelCategory} onValueChange={setNewChannelCategory}>
+                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {CHANNEL_CATEGORIES.map((cat) => (
+                            <SelectItem key={cat.value} value={cat.value}>
+                              [{cat.icon}] {cat.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Eligible Duty Types</label>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Select which duty types can access this channel. Leave empty for all.
+                      </p>
+                      <ScrollArea className="h-64 border rounded-md p-2">
+                        <div className="space-y-4">
+                          {/* OPD Units */}
+                          <div>
+                            <p className="text-xs font-semibold text-primary mb-2">OPD Units</p>
+                            <div className="grid grid-cols-2 gap-1">
+                              {OPD_UNITS.map((duty) => (
+                                <div key={duty} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={duty}
+                                    checked={newChannelDuties.includes(duty)}
+                                    onCheckedChange={() => toggleDuty(duty)}
+                                  />
+                                  <label htmlFor={duty} className="text-xs cursor-pointer">{duty}</label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* OT Specialties */}
+                          <div>
+                            <p className="text-xs font-semibold text-primary mb-2">OT Specialties</p>
+                            <div className="grid grid-cols-2 gap-1">
+                              {OT_SPECIALTIES.map((duty) => (
+                                <div key={duty} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={duty}
+                                    checked={newChannelDuties.includes(duty)}
+                                    onCheckedChange={() => toggleDuty(duty)}
+                                  />
+                                  <label htmlFor={duty} className="text-xs cursor-pointer">{duty}</label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Camp Types */}
+                          <div>
+                            <p className="text-xs font-semibold text-primary mb-2">Camp Types</p>
+                            <div className="grid grid-cols-2 gap-1">
+                              {CAMP_TYPES.map((duty) => (
+                                <div key={duty} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={duty}
+                                    checked={newChannelDuties.includes(duty)}
+                                    onCheckedChange={() => toggleDuty(duty)}
+                                  />
+                                  <label htmlFor={duty} className="text-xs cursor-pointer">{duty}</label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Other Duties */}
+                          <div>
+                            <p className="text-xs font-semibold text-primary mb-2">Other Duties</p>
+                            <div className="grid grid-cols-2 gap-1">
+                              {OTHER_DUTIES.map((duty) => (
+                                <div key={duty} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={duty}
+                                    checked={newChannelDuties.includes(duty)}
+                                    onCheckedChange={() => toggleDuty(duty)}
+                                  />
+                                  <label htmlFor={duty} className="text-xs cursor-pointer">{duty}</label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </ScrollArea>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="announcement"
+                        checked={newChannelIsAnnouncement}
+                        onCheckedChange={(checked) => setNewChannelIsAnnouncement(checked as boolean)}
+                      />
+                      <label htmlFor="announcement" className="text-sm cursor-pointer">
+                        Announcement Channel (only admins can post)
+                      </label>
+                    </div>
+                    <Button onClick={handleCreateChannel} className="w-full">Create Channel</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
-          {isAdmin && (
-            <Dialog open={showCreateChannel} onOpenChange={setShowCreateChannel}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="gap-1">
-                  <Plus className="w-4 h-4" />
-                  Channel
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create Channel</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Channel Name</Label>
-                    <Input
-                      value={newChannelName}
-                      onChange={(e) => setNewChannelName(e.target.value)}
-                      placeholder="e.g., OT Team Updates"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Type</Label>
-                    <Select value={newChannelType} onValueChange={setNewChannelType}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="team">Team Channel</SelectItem>
-                        <SelectItem value="announcement">Announcement</SelectItem>
-                        <SelectItem value="duty">Duty-linked</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Description (optional)</Label>
-                    <Textarea
-                      value={newChannelDescription}
-                      onChange={(e) => setNewChannelDescription(e.target.value)}
-                      placeholder="What's this channel for?"
-                      rows={2}
-                    />
-                  </div>
-                  <Button onClick={createChannel} className="w-full">
-                    Create Channel
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-      </div>
-
-      <div className="flex-1 flex overflow-hidden">
-        {/* Channel List - Mobile: Full width when no channel selected */}
-        <div className={`${selectedChannel ? 'hidden md:flex' : 'flex'} w-full md:w-72 flex-col border-r border-border bg-muted/30`}>
-          <ScrollArea className="flex-1">
-            <div className="p-2 space-y-1">
-              {channels.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No channels yet</p>
-                  {isAdmin && (
-                    <p className="text-xs mt-1">Create one to get started</p>
+        </CardHeader>
+        <Separator />
+        <ScrollArea className="flex-1">
+          <div className="p-2 space-y-1">
+            {CHANNEL_CATEGORIES.map((category) => {
+              const catChannels = channelsByCategory[category.value] || [];
+              if (catChannels.length === 0) return null;
+              const isExpanded = expandedCategories.includes(category.value);
+              return (
+                <div key={category.value}>
+                  <button
+                    onClick={() => toggleCategory(category.value)}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                  >
+                    {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    <span>[{category.icon}]</span>
+                    <span>{category.label}</span>
+                    <Badge variant="secondary" className="ml-auto text-xs">{catChannels.length}</Badge>
+                  </button>
+                  {isExpanded && (
+                    <div className="ml-4 space-y-0.5">
+                      {catChannels.map((channel) => (
+                        <button
+                          key={channel.id}
+                          onClick={() => handleSelectChannel(channel)}
+                          className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors ${
+                            selectedChannel?.id === channel.id
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-muted'
+                          }`}
+                        >
+                          {channel.channel_type === 'announcement' ? <Megaphone className="h-4 w-4" /> : <Hash className="h-4 w-4" />}
+                          <span className="truncate">{channel.name}</span>
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
-              ) : (
-                channels.map((channel) => (
-                  <button
-                    key={channel.id}
-                    onClick={() => setSelectedChannel(channel)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors
-                      ${selectedChannel?.id === channel.id 
-                        ? 'bg-primary/10 border border-primary/20' 
-                        : 'hover:bg-muted'
-                      }`}
-                  >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center
-                      ${channel.channel_type === 'announcement' 
-                        ? 'bg-amber-500/10 text-amber-600' 
-                        : channel.channel_type === 'duty'
-                        ? 'bg-blue-500/10 text-blue-600'
-                        : 'bg-primary/10 text-primary'
-                      }`}>
-                      {getChannelIcon(channel.channel_type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm truncate">
-                          {channel.name}
-                        </span>
-                        {getChannelBadge(channel)}
-                      </div>
-                      {channel.description && (
-                        <p className="text-xs text-muted-foreground truncate">
-                          {channel.description}
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </ScrollArea>
-        </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </Card>
 
-        {/* Chat Area */}
+      <Card className="flex-1 flex flex-col">
         {selectedChannel ? (
-          <div className="flex-1 flex flex-col min-w-0">
-            {/* Channel Header */}
-            <div className="px-4 py-3 border-b border-border bg-background flex items-center gap-3">
-              <Button 
-                variant="ghost" 
-                size="icon"
-                className="md:hidden"
-                onClick={() => setSelectedChannel(null)}
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </Button>
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center
-                ${selectedChannel.channel_type === 'announcement' 
-                  ? 'bg-amber-500/10 text-amber-600' 
-                  : selectedChannel.channel_type === 'duty'
-                  ? 'bg-blue-500/10 text-blue-600'
-                  : 'bg-primary/10 text-primary'
-                }`}>
-                {getChannelIcon(selectedChannel.channel_type)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="font-semibold text-foreground truncate">
-                  {selectedChannel.name}
-                </h2>
-                {selectedChannel.description && (
-                  <p className="text-xs text-muted-foreground truncate">
-                    {selectedChannel.description}
-                  </p>
+          <>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {selectedChannel.channel_type === 'announcement' ? <Megaphone className="h-5 w-5" /> : <Hash className="h-5 w-5" />}
+                  <CardTitle className="text-lg">{selectedChannel.name}</CardTitle>
+                </div>
+                {selectedChannel.eligible_duties && selectedChannel.eligible_duties.length > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    <Users className="h-3 w-3 mr-1" />
+                    {selectedChannel.eligible_duties.length} duty types
+                  </Badge>
                 )}
               </div>
-              {getChannelBadge(selectedChannel)}
-            </div>
-
-            {/* Messages */}
+              {selectedChannel.description && (
+                <p className="text-sm text-muted-foreground">{selectedChannel.description}</p>
+              )}
+            </CardHeader>
+            <Separator />
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
                 {messages.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm">No messages yet</p>
-                    <p className="text-xs mt-1">Start the conversation!</p>
+                  <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
+                    <MessageSquare className="h-12 w-12 mb-4 opacity-50" />
+                    <p>No messages yet</p>
+                    <p className="text-sm">Be the first to send a message!</p>
                   </div>
                 ) : (
                   messages.map((message, index) => {
-                    const isOwnMessage = message.sender_id === user?.id;
-                    const showSender = index === 0 || 
-                      messages[index - 1].sender_id !== message.sender_id;
-                    
+                    const isOwn = message.sender_id === user?.id;
+                    const showDate = index === 0 || formatDate(message.created_at) !== formatDate(messages[index - 1].created_at);
                     return (
-                      <div key={message.id} className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] ${isOwnMessage ? 'items-end' : 'items-start'}`}>
-                          {showSender && !isOwnMessage && (
-                            <p className="text-xs font-medium text-muted-foreground mb-1 ml-1">
-                              {message.sender_name}
-                            </p>
-                          )}
-                          <div className={`rounded-2xl px-4 py-2 ${
-                            message.message_type === 'announcement'
-                              ? 'bg-amber-500/10 border border-amber-500/20'
-                              : isOwnMessage 
-                              ? 'bg-primary text-primary-foreground' 
-                              : 'bg-muted'
-                          }`}>
-                            {message.is_pinned && (
-                              <div className="flex items-center gap-1 text-xs opacity-70 mb-1">
-                                <Pin className="w-3 h-3" />
-                                Pinned
-                              </div>
-                            )}
-                            <p className="text-sm whitespace-pre-wrap break-words">
-                              {message.content}
+                      <React.Fragment key={message.id}>
+                        {showDate && (
+                          <div className="flex items-center gap-2 my-4">
+                            <Separator className="flex-1" />
+                            <span className="text-xs text-muted-foreground px-2">{formatDate(message.created_at)}</span>
+                            <Separator className="flex-1" />
+                          </div>
+                        )}
+                        <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[70%] rounded-lg px-4 py-2 ${isOwn ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                            {!isOwn && <p className="text-xs font-medium mb-1">{message.sender_name}</p>}
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                            <p className={`text-xs mt-1 ${isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                              {formatTime(message.created_at)}
                             </p>
                           </div>
-                          <p className={`text-[10px] text-muted-foreground mt-1 ${isOwnMessage ? 'text-right mr-1' : 'ml-1'}`}>
-                            {formatMessageTime(message.created_at)}
-                          </p>
                         </div>
-                      </div>
+                      </React.Fragment>
                     );
                   })
                 )}
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
-
-            {/* Message Input */}
-            <div className="p-4 border-t border-border bg-background">
-              <div className="flex gap-2">
-                <Input
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                  disabled={isSending}
-                  className="flex-1"
-                />
-                <Button 
-                  onClick={sendMessage} 
-                  disabled={!newMessage.trim() || isSending}
-                  size="icon"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
+            <Separator />
+            <div className="p-4">
+              {selectedChannel.channel_type === 'announcement' && !isAdmin ? (
+                <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
+                  <Megaphone className="h-4 w-4 mr-2" />
+                  Only admins can post in announcement channels
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type a message..."
+                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                    disabled={sendingMessage}
+                  />
+                  <Button onClick={handleSendMessage} disabled={sendingMessage || !newMessage.trim()}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
-          </div>
+          </>
         ) : (
-          <div className="hidden md:flex flex-1 items-center justify-center text-muted-foreground">
-            <div className="text-center">
-              <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>Select a channel to start messaging</p>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center text-muted-foreground">
+              <MessageSquare className="h-16 w-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Select a channel</p>
+              <p className="text-sm">Choose a channel from the sidebar to start messaging</p>
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 };
