@@ -195,6 +195,31 @@ const Notes: React.FC = () => {
     return path;
   };
 
+  // Get all descendant folder IDs (recursive)
+  const getAllDescendantFolderIds = useCallback((folderId: string): string[] => {
+    const descendants: string[] = [];
+    const directChildren = folders.filter(f => f.parent_folder_id === folderId);
+    
+    for (const child of directChildren) {
+      descendants.push(child.id);
+      descendants.push(...getAllDescendantFolderIds(child.id));
+    }
+    
+    return descendants;
+  }, [folders]);
+
+  // Get total note count for a folder (including all subfolders)
+  const getTotalNoteCount = useCallback((folderId: string): number => {
+    // Notes directly in this folder
+    const directNotes = notes.filter(n => n.folder_id === folderId).length;
+    
+    // Notes in all descendant folders
+    const descendantFolderIds = getAllDescendantFolderIds(folderId);
+    const descendantNotes = notes.filter(n => n.folder_id && descendantFolderIds.includes(n.folder_id)).length;
+    
+    return directNotes + descendantNotes;
+  }, [notes, getAllDescendantFolderIds]);
+
   // Get subfolders of current folder
   const currentSubfolders = useMemo(() => {
     return folders.filter(f => f.parent_folder_id === currentFolderId);
@@ -459,7 +484,7 @@ const Notes: React.FC = () => {
     const hasSubfolders = subfolders.length > 0;
     const isExpanded = expandedFolders.has(folder.id);
     const isSelected = currentFolderId === folder.id;
-    const noteCount = notes.filter(n => n.folder_id === folder.id).length;
+    const noteCount = getTotalNoteCount(folder.id);
 
     return (
       <div key={folder.id}>
@@ -768,7 +793,7 @@ const Notes: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium truncate">{folder.name}</h4>
                       <p className="text-xs text-muted-foreground">
-                        {notes.filter(n => n.folder_id === folder.id).length} notes
+                        {getTotalNoteCount(folder.id)} notes
                       </p>
                     </div>
                     <DropdownMenu>
