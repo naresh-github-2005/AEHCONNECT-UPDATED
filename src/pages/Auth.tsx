@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Stethoscope, Mail, Lock, ArrowRight, UserPlus, LogIn } from 'lucide-react';
+import { Mail, Lock, ArrowRight, UserPlus, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -94,11 +94,15 @@ const Auth: React.FC = () => {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Hero Section */}
       <div className="bg-primary pt-safe-top pb-12 px-6 flex flex-col items-center">
-        <div className="w-20 h-20 rounded-2xl bg-primary-foreground/20 flex items-center justify-center mt-8 mb-6 animate-scale-in">
-          <Stethoscope className="w-10 h-10 text-primary-foreground" />
+        <div className="w-20 h-20 rounded-2xl bg-primary-foreground/20 flex items-center justify-center mt-8 mb-6 animate-scale-in overflow-hidden p-0">
+          <img 
+            src="/pwa-192x192.png" 
+            alt="AEHCONNECT Logo" 
+            className="w-full h-full object-cover rounded-2xl"
+          />
         </div>
         <h1 className="text-hero text-primary-foreground text-center animate-fade-in">
-          Hospital Duty
+          Auro Connect
         </h1>
         <p className="text-body text-primary-foreground/80 text-center mt-2 animate-fade-in stagger-1">
           Smart roster management for healthcare professionals
@@ -216,20 +220,6 @@ const Auth: React.FC = () => {
                 Doctor Demo
               </Button>
             </div>
-
-            <p className="text-center text-tiny text-muted-foreground">
-              {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSignUp(!isSignUp);
-                  setErrors({});
-                }}
-                className="text-primary font-medium hover:underline"
-              >
-                {isSignUp ? 'Sign in' : 'Sign up'}
-              </button>
-            </p>
           </CardContent>
         </Card>
       </div>
@@ -237,7 +227,7 @@ const Auth: React.FC = () => {
       {/* Footer */}
       <div className="text-center pb-8 px-4">
         <p className="text-tiny text-muted-foreground">
-          © 2024 City Hospital • Duty Management System
+          © 2026 Aravind Eye Hospital
         </p>
       </div>
     </div>

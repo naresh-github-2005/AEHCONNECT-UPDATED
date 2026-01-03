@@ -65,7 +65,7 @@ const Install = () => {
             </div>
             <CardTitle className="text-2xl">Already Installed!</CardTitle>
             <CardDescription>
-              Hospital Duty is already installed on your device. You can open it from your home screen.
+              Auro Connect is already installed on your device. You can open it from your home screen.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
@@ -85,7 +85,7 @@ const Install = () => {
           <div className="mx-auto w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mb-4">
             <Smartphone className="h-10 w-10 text-primary" />
           </div>
-          <CardTitle className="text-2xl">Install Hospital Duty</CardTitle>
+          <CardTitle className="text-2xl">Install Auro Connect</CardTitle>
           <CardDescription>
             Install our app for quick access to your duty roster, leave management, and team communication.
           </CardDescription>

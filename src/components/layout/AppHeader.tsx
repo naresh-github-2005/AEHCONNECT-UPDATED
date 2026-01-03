@@ -34,12 +34,16 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     <header className="glass-header text-primary-foreground sticky top-0 z-40 pt-safe-top">
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
-            <span className="text-lg font-bold">H</span>
+          <div className="w-10 h-10 rounded-xl bg-primary-foreground/20 flex items-center justify-center overflow-hidden">
+            <img 
+              src="/pwa-192x192.png" 
+              alt="Aravind Eye Hospital" 
+              className="w-full h-full object-cover rounded-xl"
+            />
           </div>
           <div>
             <h1 className="text-subtitle text-primary-foreground">
-              {title || 'City Hospital'}
+              {title || 'Aravind Eye Hospital'}
             </h1>
             {subtitle && (
               <p className="text-tiny text-primary-foreground/80">{subtitle}</p>

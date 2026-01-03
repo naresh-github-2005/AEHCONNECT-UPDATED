@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
       manifest: {
-        name: "Hospital Duty - Smart Roster Management",
-        short_name: "Hospital Duty",
+        name: "Auro Connect - Smart Roster Management",
+        short_name: "Auro Connect",
         description: "Modern duty roster management for healthcare professionals",
         theme_color: "#0D7377",
         background_color: "#0a0a0a",
