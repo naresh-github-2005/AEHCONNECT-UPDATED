@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -453,6 +453,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "class_attendees_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "doctors_at_conference_today"
+            referencedColumns: ["class_id"]
+          },
+          {
             foreignKeyName: "class_attendees_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
@@ -470,19 +477,24 @@ export type Database = {
       }
       classes: {
         Row: {
+          application_deadline: string | null
           batch: string | null
           class_date: string
           class_type: Database["public"]["Enums"]["class_type"]
           created_at: string
           created_by: string | null
           department: string | null
+          end_date: string | null
           end_time: string
           id: string
+          is_multi_day: boolean | null
           location: string | null
           material_urls: string[] | null
+          max_attendees: number | null
           moderator_id: string | null
           moderator_name: string | null
           notes: string | null
+          requires_approval: boolean | null
           speaker_name: string | null
           start_time: string
           study_material: string | null
@@ -492,19 +504,24 @@ export type Database = {
           url_display_texts: string[] | null
         }
         Insert: {
+          application_deadline?: string | null
           batch?: string | null
           class_date: string
           class_type?: Database["public"]["Enums"]["class_type"]
           created_at?: string
           created_by?: string | null
           department?: string | null
+          end_date?: string | null
           end_time?: string
           id?: string
+          is_multi_day?: boolean | null
           location?: string | null
           material_urls?: string[] | null
+          max_attendees?: number | null
           moderator_id?: string | null
           moderator_name?: string | null
           notes?: string | null
+          requires_approval?: boolean | null
           speaker_name?: string | null
           start_time?: string
           study_material?: string | null
@@ -514,19 +531,24 @@ export type Database = {
           url_display_texts?: string[] | null
         }
         Update: {
+          application_deadline?: string | null
           batch?: string | null
           class_date?: string
           class_type?: Database["public"]["Enums"]["class_type"]
           created_at?: string
           created_by?: string | null
           department?: string | null
+          end_date?: string | null
           end_time?: string
           id?: string
+          is_multi_day?: boolean | null
           location?: string | null
           material_urls?: string[] | null
+          max_attendees?: number | null
           moderator_id?: string | null
           moderator_name?: string | null
           notes?: string | null
+          requires_approval?: boolean | null
           speaker_name?: string | null
           start_time?: string
           study_material?: string | null
@@ -546,6 +568,160 @@ export type Database = {
           {
             foreignKeyName: "classes_moderator_id_fkey"
             columns: ["moderator_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conference_applications: {
+        Row: {
+          admin_notes: string | null
+          applied_at: string
+          class_id: string
+          created_at: string
+          doctor_id: string
+          doctor_notes: string | null
+          id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["conference_application_status"]
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          applied_at?: string
+          class_id: string
+          created_at?: string
+          doctor_id: string
+          doctor_notes?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["conference_application_status"]
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          applied_at?: string
+          class_id?: string
+          created_at?: string
+          doctor_id?: string
+          doctor_notes?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["conference_application_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conference_applications_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conference_applications_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "doctors_at_conference_today"
+            referencedColumns: ["class_id"]
+          },
+          {
+            foreignKeyName: "conference_applications_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "daily_doctor_availability"
+            referencedColumns: ["doctor_id"]
+          },
+          {
+            foreignKeyName: "conference_applications_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conference_applications_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "daily_doctor_availability"
+            referencedColumns: ["doctor_id"]
+          },
+          {
+            foreignKeyName: "conference_applications_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conference_duty_exclusions: {
+        Row: {
+          application_id: string
+          class_id: string
+          created_at: string
+          doctor_id: string
+          exclusion_end_date: string
+          exclusion_start_date: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          application_id: string
+          class_id: string
+          created_at?: string
+          doctor_id: string
+          exclusion_end_date: string
+          exclusion_start_date: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          application_id?: string
+          class_id?: string
+          created_at?: string
+          doctor_id?: string
+          exclusion_end_date?: string
+          exclusion_start_date?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conference_duty_exclusions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "conference_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conference_duty_exclusions_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conference_duty_exclusions_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "doctors_at_conference_today"
+            referencedColumns: ["class_id"]
+          },
+          {
+            foreignKeyName: "conference_duty_exclusions_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "daily_doctor_availability"
+            referencedColumns: ["doctor_id"]
+          },
+          {
+            foreignKeyName: "conference_duty_exclusions_doctor_id_fkey"
+            columns: ["doctor_id"]
             isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
@@ -1211,6 +1387,66 @@ export type Database = {
           },
         ]
       }
+      test_marks: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          doctor_id: string
+          id: string
+          marks_obtained: number
+          month: number
+          remarks: string | null
+          test_date: string
+          test_name: string
+          total_marks: number
+          updated_at: string | null
+          year: number
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          doctor_id: string
+          id?: string
+          marks_obtained: number
+          month: number
+          remarks?: string | null
+          test_date: string
+          test_name: string
+          total_marks: number
+          updated_at?: string | null
+          year: number
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          doctor_id?: string
+          id?: string
+          marks_obtained?: number
+          month?: number
+          remarks?: string | null
+          test_date?: string
+          test_name?: string
+          total_marks?: number
+          updated_at?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_marks_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "daily_doctor_availability"
+            referencedColumns: ["doctor_id"]
+          },
+          {
+            foreignKeyName: "test_marks_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -1294,6 +1530,42 @@ export type Database = {
         }
         Relationships: []
       }
+      doctors_at_conference_today: {
+        Row: {
+          class_id: string | null
+          class_type: Database["public"]["Enums"]["class_type"] | null
+          conference_title: string | null
+          department: string | null
+          designation: Database["public"]["Enums"]["designation_level"] | null
+          doctor_id: string | null
+          doctor_name: string | null
+          end_date: string | null
+          exclusion_end_date: string | null
+          exclusion_id: string | null
+          exclusion_start_date: string | null
+          location: string | null
+          reason: string | null
+          specialty: Database["public"]["Enums"]["medical_specialty"] | null
+          start_date: string | null
+          unit: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conference_duty_exclusions_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "daily_doctor_availability"
+            referencedColumns: ["doctor_id"]
+          },
+          {
+            foreignKeyName: "conference_duty_exclusions_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       doctors_on_leave_today: {
         Row: {
           department: string | null
@@ -1362,6 +1634,14 @@ export type Database = {
       }
     }
     Functions: {
+      apply_for_conference: {
+        Args: { p_class_id: string; p_doctor_id: string; p_notes?: string }
+        Returns: string
+      }
+      approve_conference_application: {
+        Args: { p_admin_id: string; p_application_id: string; p_notes?: string }
+        Returns: boolean
+      }
       calculate_leaves_taken: {
         Args: {
           p_doctor_id: string
@@ -1370,10 +1650,15 @@ export type Database = {
         }
         Returns: number
       }
+      cancel_conference_application: {
+        Args: { p_application_id: string; p_doctor_id: string }
+        Returns: boolean
+      }
       get_available_doctors: {
         Args: { p_date?: string }
         Returns: {
           availability_status: string
+          conference_title: string
           department: string
           designation: Database["public"]["Enums"]["designation_level"]
           doctor_id: string
@@ -1385,6 +1670,41 @@ export type Database = {
           seniority: Database["public"]["Enums"]["seniority_level"]
           specialty: Database["public"]["Enums"]["medical_specialty"]
           unit: string
+        }[]
+      }
+      get_conference_applications: {
+        Args: { p_class_id: string }
+        Returns: {
+          admin_notes: string
+          application_id: string
+          applied_at: string
+          department: string
+          designation: Database["public"]["Enums"]["designation_level"]
+          doctor_id: string
+          doctor_name: string
+          doctor_notes: string
+          reviewed_at: string
+          reviewed_by_name: string
+          specialty: Database["public"]["Enums"]["medical_specialty"]
+          status: Database["public"]["Enums"]["conference_application_status"]
+          unit: string
+        }[]
+      }
+      get_conference_applications_summary: {
+        Args: never
+        Returns: {
+          application_deadline: string
+          approved_applications: number
+          class_id: string
+          class_type: string
+          conference_title: string
+          end_date: string
+          is_deadline_passed: boolean
+          location: string
+          pending_applications: number
+          rejected_applications: number
+          start_date: string
+          total_applications: number
         }[]
       }
       get_doctor_availability_for_date: {
@@ -1412,6 +1732,21 @@ export type Database = {
           leaves_remaining: number
           leaves_taken: number
           max_leaves: number
+        }[]
+      }
+      get_doctors_at_conferences: {
+        Args: { p_date?: string }
+        Returns: {
+          conference_end_date: string
+          conference_start_date: string
+          conference_title: string
+          department: string
+          designation: Database["public"]["Enums"]["designation_level"]
+          doctor_id: string
+          doctor_name: string
+          location: string
+          specialty: Database["public"]["Enums"]["medical_specialty"]
+          unit: string
         }[]
       }
       get_doctors_on_leave: {
@@ -1455,6 +1790,24 @@ export type Database = {
           leave_type: string
         }[]
       }
+      get_my_conference_applications: {
+        Args: { p_doctor_id: string }
+        Returns: {
+          admin_notes: string
+          application_deadline: string
+          application_id: string
+          applied_at: string
+          can_cancel: boolean
+          class_id: string
+          class_type: string
+          conference_title: string
+          end_date: string
+          location: string
+          reviewed_at: string
+          start_date: string
+          status: Database["public"]["Enums"]["conference_application_status"]
+        }[]
+      }
       get_permission_hours_used: {
         Args: { p_doctor_id: string; p_month?: number; p_year?: number }
         Returns: number
@@ -1463,6 +1816,8 @@ export type Database = {
         Args: { p_date?: string }
         Returns: {
           available_doctors_list: Json
+          doctors_at_conferences: number
+          doctors_at_conferences_list: Json
           doctors_on_leave: number
           doctors_on_leave_list: Json
           doctors_with_permissions: number
@@ -1483,6 +1838,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      reject_conference_application: {
+        Args: { p_admin_id: string; p_application_id: string; p_notes?: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "doctor"
@@ -1499,6 +1858,11 @@ export type Database = {
         | "conference"
         | "seminar"
         | "workshop"
+      conference_application_status:
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "cancelled"
       designation_level: "pg" | "fellow" | "mo" | "consultant"
       duty_type:
         | "OPD"
@@ -1677,6 +2041,12 @@ export const Constants = {
         "conference",
         "seminar",
         "workshop",
+      ],
+      conference_application_status: [
+        "pending",
+        "approved",
+        "rejected",
+        "cancelled",
       ],
       designation_level: ["pg", "fellow", "mo", "consultant"],
       duty_type: [

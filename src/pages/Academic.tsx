@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, addMonths, subMonths, isToday } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, addMonths, subMonths, isToday, differenceInDays, addDays } from 'date-fns';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,17 +31,25 @@ import {
   ExternalLink,
   FileText,
   X,
-  Building
+  Building,
+  ClipboardList,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Send
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 type ClassType = 'lecture' | 'grand_rounds' | 'case_presentation' | 'journal_club' | 'complication_meeting' | 'nbems_class' | 'pharma_quiz' | 'exam' | 'conference' | 'seminar' | 'workshop' | 'other';
+type ApplicationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 interface ClassItem {
   id: string;
   title: string;
   class_type: ClassType;
   class_date: string;
+  end_date: string | null;
   start_time: string;
   end_time: string;
   topic: string | null;
@@ -54,6 +62,20 @@ interface ClassItem {
   study_material: string | null;
   material_urls: string[] | null;
   url_display_texts: string[] | null;
+  application_deadline: string | null;
+  is_multi_day: boolean | null;
+}
+
+interface ConferenceApplication {
+  id: string;
+  class_id: string;
+  doctor_id: string;
+  status: ApplicationStatus;
+  applied_at: string;
+  doctor_notes: string | null;
+  admin_notes: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
 }
 
 const classTypeColors: Record<ClassType, string> = {
@@ -95,6 +117,7 @@ const Academic: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 0, 1)); // January 2026
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
@@ -103,12 +126,15 @@ const Academic: React.FC = () => {
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
   const [classTypeFilter, setClassTypeFilter] = useState<ClassType | 'all'>('all');
+  const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false);
+  const [applicationNotes, setApplicationNotes] = useState('');
   
-  // Form data with new fields
+  // Form data with new fields including end_date for date range
   const [formData, setFormData] = useState({
     title: '',
     class_type: 'lecture' as ClassType,
     class_date: format(new Date(), 'yyyy-MM-dd'),
+    end_date: '',
     start_time: '07:00',
     end_time: '08:00',
     topic: '',
@@ -124,6 +150,7 @@ const Academic: React.FC = () => {
   });
 
   const isAdmin = user?.role === 'admin';
+  const doctorId = user?.doctorId;
 
   // Fetch classes for the current month
   const { data: classes = [], isLoading } = useQuery({
@@ -145,11 +172,55 @@ const Academic: React.FC = () => {
     }
   });
 
+  // Fetch my conference applications (for doctors)
+  const { data: myApplications = [] } = useQuery({
+    queryKey: ['my-conference-applications', doctorId],
+    queryFn: async () => {
+      if (!doctorId) return [];
+      
+      const { data, error } = await supabase
+        .rpc('get_my_conference_applications', { p_doctor_id: doctorId });
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!doctorId && !isAdmin
+  });
+
+  // Helper function to check if conference is applicable
+  const isConferenceApplicable = (classType: ClassType) => {
+    return ['conference', 'seminar', 'workshop'].includes(classType);
+  };
+
+  // Helper function to get application for a specific class
+  const getApplicationForClass = (classId: string) => {
+    return myApplications.find((app: any) => app.class_id === classId);
+  };
+
+  // Helper function to check if application deadline has passed
+  const isDeadlinePassed = (classDate: string) => {
+    const conferenceDate = parseISO(classDate);
+    const today = new Date();
+    const daysUntilConference = differenceInDays(conferenceDate, today);
+    return daysUntilConference < 2; // Deadline is 2 days before
+  };
+
   // Add class mutation
   const addClassMutation = useMutation({
     mutationFn: async (newClass: typeof formData) => {
       const urls = newClass.material_urls ? newClass.material_urls.split('\n').filter(u => u.trim()) : null;
       const displayTexts = newClass.url_display_texts ? newClass.url_display_texts.split('\n').filter(t => t.trim()) : null;
+      
+      // Calculate application_deadline (2 days before class_date) for conferences
+      let applicationDeadline = null;
+      const isConference = ['conference', 'seminar', 'workshop'].includes(newClass.class_type);
+      if (isConference) {
+        const classDate = parseISO(newClass.class_date);
+        applicationDeadline = format(addDays(classDate, -2), 'yyyy-MM-dd');
+      }
+
+      // Determine if multi-day
+      const isMultiDay = newClass.end_date && newClass.end_date !== newClass.class_date;
       
       const { error } = await supabase
         .from('classes')
@@ -157,6 +228,9 @@ const Academic: React.FC = () => {
           title: newClass.title,
           class_type: newClass.class_type,
           class_date: newClass.class_date,
+          end_date: newClass.end_date || null,
+          is_multi_day: isMultiDay,
+          application_deadline: applicationDeadline,
           start_time: newClass.start_time,
           end_time: newClass.end_time,
           topic: newClass.topic || null,
@@ -191,12 +265,26 @@ const Academic: React.FC = () => {
       const urls = data.material_urls ? data.material_urls.split('\n').filter(u => u.trim()) : null;
       const displayTexts = data.url_display_texts ? data.url_display_texts.split('\n').filter(t => t.trim()) : null;
       
+      // Calculate application_deadline for conferences
+      let applicationDeadline = null;
+      const isConference = ['conference', 'seminar', 'workshop'].includes(data.class_type);
+      if (isConference) {
+        const classDate = parseISO(data.class_date);
+        applicationDeadline = format(addDays(classDate, -2), 'yyyy-MM-dd');
+      }
+
+      // Determine if multi-day
+      const isMultiDay = data.end_date && data.end_date !== data.class_date;
+      
       const { error } = await supabase
         .from('classes')
         .update({
           title: data.title,
           class_type: data.class_type,
           class_date: data.class_date,
+          end_date: data.end_date || null,
+          is_multi_day: isMultiDay,
+          application_deadline: applicationDeadline,
           start_time: data.start_time,
           end_time: data.end_time,
           topic: data.topic || null,
@@ -247,11 +335,75 @@ const Academic: React.FC = () => {
     }
   });
 
+  // Apply for conference mutation
+  const applyForConferenceMutation = useMutation({
+    mutationFn: async ({ classId, notes }: { classId: string; notes: string }) => {
+      if (!doctorId) throw new Error('Doctor ID not found');
+      
+      const { data, error } = await supabase
+        .rpc('apply_for_conference', {
+          p_class_id: classId,
+          p_doctor_id: doctorId,
+          p_notes: notes || null
+        });
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-conference-applications'] });
+      toast({ 
+        title: 'Success', 
+        description: 'Application submitted successfully' 
+      });
+      setIsApplyDialogOpen(false);
+      setApplicationNotes('');
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to submit application', 
+        variant: 'destructive' 
+      });
+    }
+  });
+
+  // Cancel conference application mutation
+  const cancelApplicationMutation = useMutation({
+    mutationFn: async (applicationId: string) => {
+      if (!doctorId) throw new Error('Doctor ID not found');
+      
+      const { data, error } = await supabase
+        .rpc('cancel_conference_application', {
+          p_application_id: applicationId,
+          p_doctor_id: doctorId
+        });
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-conference-applications'] });
+      toast({ 
+        title: 'Success', 
+        description: 'Application cancelled successfully' 
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'Failed to cancel application', 
+        variant: 'destructive' 
+      });
+    }
+  });
+
   const resetForm = () => {
     setFormData({
       title: '',
       class_type: 'lecture',
       class_date: format(new Date(), 'yyyy-MM-dd'),
+      end_date: '',
       start_time: '07:00',
       end_time: '08:00',
       topic: '',
@@ -273,6 +425,7 @@ const Academic: React.FC = () => {
       title: classItem.title,
       class_type: classItem.class_type,
       class_date: classItem.class_date,
+      end_date: classItem.end_date || '',
       start_time: classItem.start_time,
       end_time: classItem.end_time,
       topic: classItem.topic || '',
@@ -429,19 +582,36 @@ const Academic: React.FC = () => {
         </div>
       </div>
       
-      <div className="grid grid-cols-3 gap-2">
+      <div className="space-y-2">
+        <Label>Start Date *</Label>
+        <Input
+          type="date"
+          value={formData.class_date}
+          onChange={(e) => setFormData({ ...formData, class_date: e.target.value })}
+          min={isEdit ? undefined : minDate}
+          required
+        />
+      </div>
+
+      {/* Show end date only for conferences, seminars, workshops */}
+      {isConferenceApplicable(formData.class_type) && (
         <div className="space-y-2">
-          <Label>Date *</Label>
+          <Label>End Date (Optional - for multi-day events)</Label>
           <Input
             type="date"
-            value={formData.class_date}
-            onChange={(e) => setFormData({ ...formData, class_date: e.target.value })}
-            min={isEdit ? undefined : minDate}
-            required
+            value={formData.end_date}
+            onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+            min={formData.class_date}
           />
+          <p className="text-xs text-muted-foreground">
+            Leave empty for single-day events. Application deadline will be 2 days before start date.
+          </p>
         </div>
+      )}
+      
+      <div className="grid grid-cols-2 gap-2">
         <div className="space-y-2">
-          <Label>Start</Label>
+          <Label>Start Time</Label>
           <Input
             type="time"
             value={formData.start_time}
@@ -449,7 +619,7 @@ const Academic: React.FC = () => {
           />
         </div>
         <div className="space-y-2">
-          <Label>End</Label>
+          <Label>End Time</Label>
           <Input
             type="time"
             value={formData.end_time}
@@ -654,6 +824,98 @@ const Academic: React.FC = () => {
           </div>
         )}
 
+        {/* Show end date if multi-day */}
+        {selectedClass.end_date && selectedClass.end_date !== selectedClass.class_date && (
+          <div className="text-sm">
+            <p className="text-muted-foreground">End Date</p>
+            <p className="font-medium">{format(parseISO(selectedClass.end_date), 'EEE, MMM d, yyyy')}</p>
+          </div>
+        )}
+
+        {/* Application Status and Apply Button for Doctors */}
+        {!isAdmin && isConferenceApplicable(selectedClass.class_type) && (
+          <>
+            {(() => {
+              const application = getApplicationForClass(selectedClass.id);
+              const deadlinePassed = isDeadlinePassed(selectedClass.class_date);
+              
+              if (application) {
+                // Show application status
+                return (
+                  <div className="p-3 rounded-lg border bg-accent/30">
+                    <div className="flex items-center gap-2 mb-1">
+                      {application.status === 'pending' && (
+                        <>
+                          <AlertCircle className="w-4 h-4 text-amber-500" />
+                          <span className="font-medium text-sm">Application Pending</span>
+                        </>
+                      )}
+                      {application.status === 'approved' && (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          <span className="font-medium text-sm">Application Approved</span>
+                        </>
+                      )}
+                      {application.status === 'rejected' && (
+                        <>
+                          <XCircle className="w-4 h-4 text-red-500" />
+                          <span className="font-medium text-sm">Application Rejected</span>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Applied on {format(parseISO(application.applied_at), 'MMM d, yyyy')}
+                    </p>
+                    {application.admin_notes && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Admin note: {application.admin_notes}
+                      </p>
+                    )}
+                    {(application.status === 'pending' || application.status === 'approved') && application.can_cancel && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 w-full"
+                        onClick={() => {
+                          if (confirm('Are you sure you want to cancel this application?')) {
+                            cancelApplicationMutation.mutate(application.application_id);
+                          }
+                        }}
+                        disabled={cancelApplicationMutation.isPending}
+                      >
+                        {cancelApplicationMutation.isPending ? 'Cancelling...' : 'Cancel Application'}
+                      </Button>
+                    )}
+                  </div>
+                );
+              } else if (!deadlinePassed) {
+                // Show apply button
+                return (
+                  <Button
+                    onClick={() => {
+                      setSelectedClass(selectedClass);
+                      setIsApplyDialogOpen(true);
+                    }}
+                    className="w-full"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Apply for this {classTypeLabels[selectedClass.class_type]}
+                  </Button>
+                );
+              } else {
+                // Deadline passed
+                return (
+                  <div className="p-3 rounded-lg border bg-muted/50">
+                    <p className="text-sm text-muted-foreground text-center">
+                      Application deadline has passed
+                    </p>
+                  </div>
+                );
+              }
+            })()}
+          </>
+        )}
+
         <div className="flex gap-2 pt-4">
           <Button variant="outline" onClick={() => setIsDetailSheetOpen(false)} className="flex-1">
             Close
@@ -699,20 +961,32 @@ const Academic: React.FC = () => {
             </SelectContent>
           </Select>
           {isAdmin && (
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="gap-1 flex-shrink-0">
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Add</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Class</DialogTitle>
-                </DialogHeader>
-                {renderClassForm(handleSubmit, false)}
-              </DialogContent>
-            </Dialog>
+            <>
+              {/* Conference Requests Button */}
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1 flex-shrink-0"
+                onClick={() => navigate('/conference-requests')}
+              >
+                <ClipboardList className="w-4 h-4" />
+                <span className="hidden sm:inline">Requests</span>
+              </Button>
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-1 flex-shrink-0">
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Add</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Add New Class</DialogTitle>
+                  </DialogHeader>
+                  {renderClassForm(handleSubmit, false)}
+                </DialogContent>
+              </Dialog>
+            </>
           )}
         </div>
       </div>
@@ -1052,6 +1326,67 @@ const Academic: React.FC = () => {
             <DialogTitle>Edit Class</DialogTitle>
           </DialogHeader>
           {renderClassForm(handleEditSubmit, true)}
+        </DialogContent>
+      </Dialog>
+
+      {/* Apply for Conference Dialog */}
+      <Dialog open={isApplyDialogOpen} onOpenChange={setIsApplyDialogOpen}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Apply for {selectedClass ? classTypeLabels[selectedClass.class_type] : 'Conference'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedClass && (
+              <div className="p-3 rounded-lg bg-accent/30">
+                <h4 className="font-medium text-sm">{selectedClass.title}</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {format(parseISO(selectedClass.class_date), 'MMMM d, yyyy')}
+                  {selectedClass.end_date && selectedClass.end_date !== selectedClass.class_date && 
+                    ` - ${format(parseISO(selectedClass.end_date), 'MMMM d, yyyy')}`
+                  }
+                </p>
+                {selectedClass.location && (
+                  <p className="text-xs text-muted-foreground">📍 {selectedClass.location}</p>
+                )}
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label>Additional Notes (Optional)</Label>
+              <Textarea
+                value={applicationNotes}
+                onChange={(e) => setApplicationNotes(e.target.value)}
+                placeholder="Any specific reason or information for attending..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsApplyDialogOpen(false);
+                setApplicationNotes('');
+              }}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                if (selectedClass) {
+                  applyForConferenceMutation.mutate({
+                    classId: selectedClass.id,
+                    notes: applicationNotes
+                  });
+                }
+              }}
+              disabled={applyForConferenceMutation.isPending}
+              className="w-full sm:w-auto"
+            >
+              {applyForConferenceMutation.isPending ? 'Submitting...' : 'Submit Application'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

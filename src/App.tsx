@@ -18,6 +18,9 @@ import DoctorProfiles from "./pages/DoctorProfiles";
 import Messages from "./pages/Messages";
 import Attendance from "./pages/Attendance";
 import Academic from "./pages/Academic";
+import ConferenceRequests from "./pages/ConferenceRequests";
+import TestMarks from "./pages/TestMarks";
+import MyTestMarks from "./pages/MyTestMarks";
 import SurgeryLog from "./pages/SurgeryLog";
 import Notes from "./pages/Notes";
 import MyPublications from "./pages/MyPublications";
@@ -180,6 +183,39 @@ const AppRoutes: React.FC = () => {
           <ProtectedRoute>
             <AppLayout>
               <Academic />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/conference-requests"
+        element={
+          <ProtectedRoute adminOnly>
+            <AppLayout>
+              <ConferenceRequests />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/test-marks"
+        element={
+          <ProtectedRoute adminOnly>
+            <AppLayout>
+              <TestMarks />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/my-test-marks"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <MyTestMarks />
             </AppLayout>
           </ProtectedRoute>
         }

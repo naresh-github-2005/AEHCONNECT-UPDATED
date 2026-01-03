@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { Bell, LogOut, MoreVertical, User, FileText, BookOpen, Library } from 'lucide-react';
+import { Bell, LogOut, MoreVertical, User, FileText, BookOpen, Library, ClipboardCheck } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,9 +82,21 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 My Publications
               </DropdownMenuItem>
               {user?.role === 'admin' && (
-                <DropdownMenuItem onClick={() => navigate('/all-publications')} className="cursor-pointer">
-                  <Library className="w-4 h-4 mr-2" />
-                  All Publications
+                <>
+                  <DropdownMenuItem onClick={() => navigate('/all-publications')} className="cursor-pointer">
+                    <Library className="w-4 h-4 mr-2" />
+                    All Publications
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/test-marks')} className="cursor-pointer">
+                    <ClipboardCheck className="w-4 h-4 mr-2" />
+                    Test Marks
+                  </DropdownMenuItem>
+                </>
+              )}
+              {(user?.designation === 'fellow' || user?.designation === 'pg') && (
+                <DropdownMenuItem onClick={() => navigate('/my-test-marks')} className="cursor-pointer">
+                  <ClipboardCheck className="w-4 h-4 mr-2" />
+                  My Test Marks
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />

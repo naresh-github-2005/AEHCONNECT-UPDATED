@@ -12,6 +12,7 @@ export interface AuthUser {
   doctorId?: string;
   name?: string;
   eligibleDuties?: string[];
+  designation?: string;
 }
 
 interface AuthContextType {
@@ -51,10 +52,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let doctorId: string | undefined;
       let name: string | undefined;
       let eligibleDuties: string[] | undefined;
+      let designation: string | undefined;
 
       const { data: doctorData } = await supabase
         .from('doctors')
-        .select('id, name, eligible_duties')
+        .select('id, name, eligible_duties, designation')
         .eq('user_id', userId)
         .maybeSingle();
 
@@ -62,6 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         doctorId = doctorData.id;
         name = doctorData.name;
         eligibleDuties = doctorData.eligible_duties || [];
+        designation = doctorData.designation;
       } else if (role === 'admin') {
         name = 'Administrator';
         eligibleDuties = []; // Admin sees all
@@ -74,6 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         doctorId,
         name: name || userEmail,
         eligibleDuties,
+        designation,
       };
     } catch (error) {
       console.error('Error in fetchUserRole:', error);
