@@ -575,19 +575,21 @@ const Notes: React.FC = () => {
             {hasUnsavedChanges && (
               <span className="text-xs text-muted-foreground">Unsaved</span>
             )}
-            {isSaving && (
+            {isSaving ? (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <div className="animate-spin rounded-full h-3 w-3 border-b border-primary"></div>
                 Saving...
               </span>
-            )}
+            ) : hasUnsavedChanges ? (
+              <Badge variant="secondary" className="text-xs">Unsaved</Badge>
+            ) : null}
             <Button 
               size="sm" 
               onClick={() => handleSaveNote(false)}
-              disabled={isSaving || !hasUnsavedChanges}
-              className="gap-1"
+              disabled={isSaving}
+              className="gap-1.5"
             >
-              {isSaving ? <div className="animate-spin rounded-full h-4 w-4 border-b border-white"></div> : <Save className="h-4 w-4" />}
+              <Save className="h-4 w-4" />
               Save
             </Button>
             
@@ -612,8 +614,8 @@ const Notes: React.FC = () => {
         
         {/* Editor Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Title Input */}
-          <div className="px-4 pt-4 pb-2 border-b">
+          {/* Title Section */}
+          <div className="px-4 pt-4 pb-3 border-b bg-muted/20">
             <Input
               value={noteTitle}
               onChange={(e) => {
@@ -621,19 +623,19 @@ const Notes: React.FC = () => {
                 setHasUnsavedChanges(true);
               }}
               placeholder="Note title"
-              className="text-xl font-semibold border-none shadow-none px-0 h-auto focus-visible:ring-0"
+              className="text-xl font-bold border-none shadow-none px-0 h-auto focus-visible:ring-0 bg-transparent"
             />
             
             {/* Links Section */}
             {currentNote.drive_links && currentNote.drive_links.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
+              <div className="flex flex-wrap gap-2 mt-3">
                 {currentNote.drive_links.map((link, idx) => (
                   <a
                     key={idx}
                     href={link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded-md text-xs hover:bg-blue-100 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium hover:bg-blue-200 transition-colors"
                   >
                     <ExternalLink className="h-3 w-3" />
                     <span className="truncate max-w-[150px]">Link {idx + 1}</span>
@@ -641,24 +643,21 @@ const Notes: React.FC = () => {
                 ))}
               </div>
             )}
-            
-            <p className="text-xs text-muted-foreground mt-2">
-              Last edited: {format(new Date(currentNote.updated_at), 'MMM d, yyyy h:mm a')}
-            </p>
           </div>
           
-          {/* Note Content Editor */}
-          <ScrollArea className="flex-1">
+          {/* Note Content Editor - Large Blank Area */}
+          <div className="flex-1 overflow-auto">
             <Textarea
               value={noteContent}
               onChange={(e) => {
                 setNoteContent(e.target.value);
                 setHasUnsavedChanges(true);
               }}
-              placeholder="Start writing your note here..."
-              className="w-full min-h-[calc(100vh-300px)] resize-none border-none shadow-none focus-visible:ring-0 p-4 text-base leading-relaxed"
+              placeholder="Start writing your notes here..."
+              className="w-full h-full min-h-[calc(100vh-280px)] resize-none border-none shadow-none focus-visible:ring-0 p-4 text-base leading-relaxed rounded-none"
+              autoFocus
             />
-          </ScrollArea>
+          </div>
         </div>
 
         {/* Delete Dialog */}
@@ -920,8 +919,9 @@ const Notes: React.FC = () => {
             <Button variant="outline" onClick={() => setCreateNoteDialogOpen(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button onClick={handleCreateNote} disabled={!newNoteTitle.trim()} className="w-full sm:w-auto">
-              Create & Open
+            <Button onClick={handleCreateNote} disabled={!newNoteTitle.trim()} className="w-full sm:w-auto gap-1.5">
+              <FilePlus className="h-4 w-4" />
+              Create
             </Button>
           </DialogFooter>
         </DialogContent>
