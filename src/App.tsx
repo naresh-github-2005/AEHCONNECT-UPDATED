@@ -22,6 +22,7 @@ import SurgeryLog from "./pages/SurgeryLog";
 import Notes from "./pages/Notes";
 import MyPublications from "./pages/MyPublications";
 import AllPublications from "./pages/AllPublications";
+import Profile from "./pages/Profile";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 
@@ -221,6 +222,17 @@ const AppRoutes: React.FC = () => {
           <ProtectedRoute adminOnly>
             <AppLayout>
               <AllPublications />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <Profile />
             </AppLayout>
           </ProtectedRoute>
         }

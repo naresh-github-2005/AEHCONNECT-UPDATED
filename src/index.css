@@ -4,98 +4,114 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Hospital Duty Management System - Design System
-   Clean, professional, medical-grade UI */
+/* AEHCONNECT - Design System
+   Primary Brand Color: #0496c7 (Cyan Blue)
+   WCAG 2.1 AA Compliant Color Palette */
 
 @layer base {
   :root {
-    /* Medical-grade color palette */
-    --background: 210 20% 98%;
-    --foreground: 215 25% 15%;
+    /* Light Theme - Clean, Professional Medical UI
+       Primary: #0496c7 (197° 96% 40%) - Vibrant Cyan Blue */
+    
+    --background: 200 20% 98%;
+    --foreground: 200 30% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 15%;
+    --card-foreground: 200 30% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 15%;
+    --popover-foreground: 200 30% 12%;
 
-    /* Primary: Professional Teal */
-    --primary: 168 76% 32%;
+    /* Primary: Brand Cyan Blue - darker for WCAG AA text compliance */
+    --primary: 197 96% 32%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary: Soft Blue-Gray */
-    --secondary: 210 20% 96%;
-    --secondary-foreground: 215 25% 25%;
+    /* Secondary: Soft blue-gray complement */
+    --secondary: 200 20% 95%;
+    --secondary-foreground: 200 30% 20%;
 
     /* Muted: Subtle backgrounds */
-    --muted: 210 15% 94%;
-    --muted-foreground: 215 15% 45%;
+    --muted: 200 15% 93%;
+    --muted-foreground: 200 15% 40%;
 
-    /* Accent: Sky Blue for actions */
-    --accent: 199 89% 48%;
+    /* Accent: Lighter cyan for highlights/hover */
+    --accent: 197 85% 45%;
     --accent-foreground: 0 0% 100%;
 
-    /* Status colors */
-    --success: 158 64% 42%;
+    /* Status colors - WCAG compliant */
+    --success: 152 60% 36%;
     --success-foreground: 0 0% 100%;
     
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 38 92% 45%;
+    --warning-foreground: 0 0% 10%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
 
     /* UI Elements */
-    --border: 214 20% 90%;
-    --input: 214 20% 90%;
-    --ring: 168 76% 32%;
+    --border: 200 20% 88%;
+    --input: 200 20% 88%;
+    --ring: 197 96% 40%;
 
     --radius: 0.75rem;
 
-    /* Custom tokens */
-    --header-bg: 168 76% 32%;
+    /* Custom tokens - Brand cyan theme */
+    --header-bg: 197 96% 32%;
     --header-foreground: 0 0% 100%;
     
-    --duty-card: 168 50% 97%;
-    --duty-card-border: 168 40% 85%;
+    --duty-card: 197 50% 97%;
+    --duty-card-border: 197 40% 85%;
     
-    --night-duty: 215 70% 97%;
-    --night-duty-border: 215 50% 80%;
+    --night-duty: 220 60% 97%;
+    --night-duty-border: 220 40% 82%;
 
     /* Sidebar */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 215 25% 25%;
-    --sidebar-primary: 168 76% 32%;
+    --sidebar-foreground: 200 30% 20%;
+    --sidebar-primary: 197 96% 32%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 20% 96%;
-    --sidebar-accent-foreground: 215 25% 25%;
-    --sidebar-border: 214 20% 92%;
-    --sidebar-ring: 168 76% 32%;
+    --sidebar-accent: 197 40% 95%;
+    --sidebar-accent-foreground: 197 96% 28%;
+    --sidebar-border: 200 20% 90%;
+    --sidebar-ring: 197 96% 40%;
+
+    /* Chart colors */
+    --chart-1: 197 96% 40%;
+    --chart-2: 197 70% 55%;
+    --chart-3: 152 60% 42%;
+    --chart-4: 38 85% 50%;
+    --chart-5: 280 60% 55%;
   }
 
   .dark {
-    --background: 215 25% 10%;
-    --foreground: 210 20% 95%;
+    /* Dark Theme - WCAG AA compliant
+       Primary lighter for dark bg contrast */
+    
+    --background: 200 30% 8%;
+    --foreground: 200 15% 92%;
 
-    --card: 215 25% 13%;
-    --card-foreground: 210 20% 95%;
+    --card: 200 25% 11%;
+    --card-foreground: 200 15% 92%;
 
-    --popover: 215 25% 13%;
-    --popover-foreground: 210 20% 95%;
+    --popover: 200 25% 11%;
+    --popover-foreground: 200 15% 92%;
 
-    --primary: 168 65% 45%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary: Lighter cyan for dark mode - WCAG AA compliant */
+    --primary: 197 80% 52%;
+    --primary-foreground: 200 30% 8%;
 
-    --secondary: 215 20% 18%;
-    --secondary-foreground: 210 20% 90%;
+    --secondary: 200 20% 16%;
+    --secondary-foreground: 200 15% 85%;
 
-    --muted: 215 20% 20%;
-    --muted-foreground: 215 15% 60%;
+    --muted: 200 20% 18%;
+    --muted-foreground: 200 12% 58%;
 
-    --accent: 199 80% 55%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent: Brighter cyan for dark mode */
+    --accent: 197 75% 58%;
+    --accent-foreground: 200 30% 8%;
 
-    --success: 158 55% 50%;
+    /* Status colors - adjusted for dark mode */
+    --success: 152 55% 48%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 85% 55%;
@@ -104,24 +120,35 @@
     --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 215 20% 22%;
-    --input: 215 20% 22%;
-    --ring: 168 65% 45%;
+    --border: 200 20% 20%;
+    --input: 200 20% 20%;
+    --ring: 197 80% 52%;
 
-    --duty-card: 168 30% 15%;
-    --duty-card-border: 168 30% 25%;
+    /* Custom tokens - dark theme */
+    --header-bg: 197 70% 25%;
+    --header-foreground: 0 0% 100%;
+
+    --duty-card: 197 30% 14%;
+    --duty-card-border: 197 30% 24%;
     
-    --night-duty: 215 40% 15%;
-    --night-duty-border: 215 30% 25%;
+    --night-duty: 220 35% 14%;
+    --night-duty-border: 220 30% 24%;
 
-    --sidebar-background: 215 25% 12%;
-    --sidebar-foreground: 210 20% 90%;
-    --sidebar-primary: 168 65% 45%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 20% 18%;
-    --sidebar-accent-foreground: 210 20% 90%;
-    --sidebar-border: 215 20% 20%;
-    --sidebar-ring: 168 65% 45%;
+    --sidebar-background: 200 28% 10%;
+    --sidebar-foreground: 200 15% 88%;
+    --sidebar-primary: 197 80% 52%;
+    --sidebar-primary-foreground: 200 30% 8%;
+    --sidebar-accent: 197 40% 18%;
+    --sidebar-accent-foreground: 197 70% 70%;
+    --sidebar-border: 200 20% 18%;
+    --sidebar-ring: 197 80% 52%;
+
+    /* Chart colors - dark mode */
+    --chart-1: 197 80% 52%;
+    --chart-2: 197 65% 62%;
+    --chart-3: 152 55% 50%;
+    --chart-4: 38 80% 58%;
+    --chart-5: 280 55% 62%;
   }
 }
 
@@ -141,7 +168,7 @@
 }
 
 @layer components {
-  /* Status badges */
+  /* Status badges - WCAG compliant */
   .status-approved {
     @apply bg-success/10 text-success border border-success/20;
   }
@@ -154,7 +181,7 @@
     @apply bg-destructive/10 text-destructive border border-destructive/20;
   }
 
-  /* Duty type badges */
+  /* Duty type badges - using brand cyan */
   .duty-opd {
     @apply bg-primary/10 text-primary;
   }
@@ -180,9 +207,14 @@
     @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
   }
 
-  /* Glass effect for headers */
+  /* Glass effect for headers - brand cyan */
   .glass-header {
     @apply bg-primary/95 backdrop-blur-sm;
+  }
+
+  /* Focus ring with brand color */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
   }
 }
 

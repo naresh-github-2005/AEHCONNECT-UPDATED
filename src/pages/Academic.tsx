@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-type ClassType = 'lecture' | 'grand_rounds' | 'case_presentation' | 'journal_club' | 'complication_meeting' | 'nbems_class' | 'pharma_quiz' | 'exam' | 'other';
+type ClassType = 'lecture' | 'grand_rounds' | 'case_presentation' | 'journal_club' | 'complication_meeting' | 'nbems_class' | 'pharma_quiz' | 'exam' | 'conference' | 'seminar' | 'workshop' | 'other';
 
 interface ClassItem {
   id: string;
@@ -65,6 +65,9 @@ const classTypeColors: Record<ClassType, string> = {
   nbems_class: 'bg-indigo-500/20 text-indigo-600 border-indigo-500/30',
   pharma_quiz: 'bg-pink-500/20 text-pink-600 border-pink-500/30',
   exam: 'bg-amber-500/20 text-amber-600 border-amber-500/30',
+  conference: 'bg-emerald-500/20 text-emerald-600 border-emerald-500/30',
+  seminar: 'bg-cyan-500/20 text-cyan-600 border-cyan-500/30',
+  workshop: 'bg-teal-500/20 text-teal-600 border-teal-500/30',
   other: 'bg-gray-500/20 text-gray-600 border-gray-500/30'
 };
 
@@ -77,6 +80,9 @@ const classTypeLabels: Record<ClassType, string> = {
   nbems_class: 'NBEMS Class',
   pharma_quiz: 'Pharma Quiz',
   exam: 'Exam',
+  conference: 'Conference',
+  seminar: 'Seminar',
+  workshop: 'Workshop',
   other: 'Other'
 };
 
@@ -96,6 +102,7 @@ const Academic: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassItem | null>(null);
+  const [classTypeFilter, setClassTypeFilter] = useState<ClassType | 'all'>('all');
   
   // Form data with new fields
   const [formData, setFormData] = useState({
@@ -288,15 +295,6 @@ const Academic: React.FC = () => {
     setIsDetailSheetOpen(true);
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingClass || !formData.title || !formData.class_date) {
-      toast({ title: 'Error', description: 'Please fill in required fields', variant: 'destructive' });
-      return;
-    }
-    updateClassMutation.mutate({ id: editingClass.id, data: formData });
-  };
-
   // Get days in current month
   const daysInMonth = useMemo(() => {
     return eachDayOfInterval({
@@ -310,29 +308,79 @@ const Academic: React.FC = () => {
     return classes.filter(c => isSameDay(parseISO(c.class_date), date));
   };
 
-  // Selected date classes
-  const selectedDateClasses = selectedDate ? getClassesForDate(selectedDate) : [];
+  // Selected date classes - apply filter
+  const selectedDateClasses = selectedDate 
+    ? getClassesForDate(selectedDate).filter(c => classTypeFilter === 'all' || c.class_type === classTypeFilter) 
+    : [];
+
+  // Filtered classes for stats
+  const filteredClasses = classTypeFilter === 'all' 
+    ? classes 
+    : classes.filter(c => c.class_type === classTypeFilter);
 
   // Stats calculations
   const stats = useMemo(() => {
-    const total = classes.length;
-    const grandRounds = classes.filter(c => c.class_type === 'grand_rounds').length;
-    const lectures = classes.filter(c => c.class_type === 'lecture').length;
-    const casePresentations = classes.filter(c => c.class_type === 'case_presentation').length;
-    return { total, grandRounds, lectures, casePresentations };
-  }, [classes]);
+    const total = filteredClasses.length;
+    const grandRounds = filteredClasses.filter(c => c.class_type === 'grand_rounds').length;
+    const lectures = filteredClasses.filter(c => c.class_type === 'lecture').length;
+    const casePresentations = filteredClasses.filter(c => c.class_type === 'case_presentation').length;
+    const conferences = filteredClasses.filter(c => c.class_type === 'conference').length;
+    return { total, grandRounds, lectures, casePresentations, conferences };
+  }, [filteredClasses]);
+
+  // Validation helper
+  const validateForm = (isEdit: boolean = false): string | null => {
+    if (!formData.title.trim()) {
+      return 'Title is required';
+    }
+    if (!formData.class_date) {
+      return 'Date is required';
+    }
+    
+    // Check if date is not in the past (only for new classes)
+    if (!isEdit) {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      if (formData.class_date < today) {
+        return 'Cannot add a class for a past date';
+      }
+    }
+    
+    // Validate start and end time
+    if (formData.start_time && formData.end_time) {
+      if (formData.end_time <= formData.start_time) {
+        return 'End time must be after start time';
+      }
+    }
+    
+    return null;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.class_date) {
-      toast({ title: 'Error', description: 'Please fill in required fields', variant: 'destructive' });
+    const error = validateForm(false);
+    if (error) {
+      toast({ title: 'Validation Error', description: error, variant: 'destructive' });
       return;
     }
     addClassMutation.mutate(formData);
   };
 
-  // Class form component (reusable for add/edit)
-  const ClassForm = ({ onSubmit, isEdit = false }: { onSubmit: (e: React.FormEvent) => void; isEdit?: boolean }) => (
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClass) return;
+    const error = validateForm(true);
+    if (error) {
+      toast({ title: 'Validation Error', description: error, variant: 'destructive' });
+      return;
+    }
+    updateClassMutation.mutate({ id: editingClass.id, data: formData });
+  };
+
+  // Get minimum date for date picker (today)
+  const minDate = format(new Date(), 'yyyy-MM-dd');
+
+  // Render function for the class form (not a component to avoid re-render issues)
+  const renderClassForm = (onSubmit: (e: React.FormEvent) => void, isEdit: boolean = false) => (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label>Title *</Label>
@@ -388,6 +436,7 @@ const Academic: React.FC = () => {
             type="date"
             value={formData.class_date}
             onChange={(e) => setFormData({ ...formData, class_date: e.target.value })}
+            min={isEdit ? undefined : minDate}
             required
           />
         </div>
@@ -633,22 +682,39 @@ const Academic: React.FC = () => {
             Classes & Academic Activities
           </p>
         </div>
-        {isAdmin && (
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-1 flex-shrink-0">
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Add</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New Class</DialogTitle>
-              </DialogHeader>
-              <ClassForm onSubmit={handleSubmit} />
-            </DialogContent>
-          </Dialog>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Class Type Filter */}
+          <Select
+            value={classTypeFilter}
+            onValueChange={(value) => setClassTypeFilter(value as ClassType | 'all')}
+          >
+            <SelectTrigger className="w-[120px] sm:w-[140px] h-9">
+              <SelectValue placeholder="Filter" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {Object.entries(classTypeLabels).map(([key, label]) => (
+                <SelectItem key={key} value={key}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isAdmin && (
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-1 flex-shrink-0">
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Add</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Add New Class</DialogTitle>
+                </DialogHeader>
+                {renderClassForm(handleSubmit, false)}
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards - Horizontal scroll on mobile */}
@@ -704,6 +770,20 @@ const Academic: React.FC = () => {
               <div>
                 <p className="text-xl font-bold text-foreground">{stats.casePresentations}</p>
                 <p className="text-xs text-muted-foreground">Cases</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20 flex-shrink-0 min-w-[140px]">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-emerald-500/20">
+                <Users className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-foreground">{stats.conferences}</p>
+                <p className="text-xs text-muted-foreground">Conferences</p>
               </div>
             </div>
           </CardContent>
@@ -798,7 +878,10 @@ const Academic: React.FC = () => {
                               className={cn(
                                 'w-1 h-1 rounded-full',
                                 c.class_type === 'case_presentation' ? 'bg-green-500' :
-                                c.class_type === 'grand_rounds' ? 'bg-purple-500' : 'bg-blue-500'
+                                c.class_type === 'grand_rounds' ? 'bg-purple-500' :
+                                c.class_type === 'conference' ? 'bg-emerald-500' :
+                                c.class_type === 'seminar' ? 'bg-cyan-500' :
+                                c.class_type === 'workshop' ? 'bg-teal-500' : 'bg-blue-500'
                               )} 
                             />
                           ))}
@@ -968,7 +1051,7 @@ const Academic: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Edit Class</DialogTitle>
           </DialogHeader>
-          <ClassForm onSubmit={handleEditSubmit} isEdit />
+          {renderClassForm(handleEditSubmit, true)}
         </DialogContent>
       </Dialog>
     </div>
