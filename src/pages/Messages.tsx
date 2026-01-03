@@ -325,7 +325,8 @@ const Messages: React.FC = () => {
     );
   };
 
-  const SidebarContent = () => (
+  // Sidebar content JSX - not a function to prevent re-render focus loss
+  const sidebarContent = (
     <div className="flex flex-col h-full">
       <div className="p-4 border-b space-y-3">
         <div className="flex items-center justify-between">
@@ -334,7 +335,13 @@ const Messages: React.FC = () => {
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search channels..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
+          <Input 
+            placeholder="Search channels..." 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)} 
+            className="pl-9"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       </div>
       <ScrollArea className="flex-1">
@@ -375,7 +382,8 @@ const Messages: React.FC = () => {
       );
     }
     const config = CATEGORY_CONFIG[selectedChannel.category] || CATEGORY_CONFIG.general;
-    const canSendMessage = selectedChannel.channel_type === 'group' || isAdmin;
+    // Allow sending if: it's a group channel (all members can send) OR it's announcement and user is admin
+    const canSendMessage = selectedChannel.channel_type === 'group' ? true : isAdmin;
     return (
       <div className="flex-1 flex flex-col h-full">
         <div className="border-b px-4 py-3 flex items-center gap-3">
@@ -462,10 +470,10 @@ const Messages: React.FC = () => {
 
   return (
     <div className="flex h-[calc(100vh-120px)] bg-background">
-      {!isMobile && <div className="w-80 border-r flex-shrink-0"><SidebarContent /></div>}
+      {!isMobile && <div className="w-80 border-r flex-shrink-0">{sidebarContent}</div>}
       {isMobile && (
         <Sheet open={showSidebar} onOpenChange={setShowSidebar}>
-          <SheetContent side="left" className="w-[85vw] max-w-sm p-0"><SidebarContent /></SheetContent>
+          <SheetContent side="left" className="w-[85vw] max-w-sm p-0">{sidebarContent}</SheetContent>
         </Sheet>
       )}
       <div className="flex-1 flex flex-col min-w-0"><ChatView /></div>
