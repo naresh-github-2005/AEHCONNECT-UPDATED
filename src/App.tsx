@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { DataProvider } from "@/contexts/DataContext";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { InstallPrompt } from "@/components/InstallPrompt";
 
 import Auth from "./pages/Auth";
 import DoctorDashboard from "./pages/DoctorDashboard";
@@ -288,6 +289,7 @@ const App = () => (
         <DataProvider>
           <Toaster />
           <Sonner />
+          <InstallPrompt />
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
