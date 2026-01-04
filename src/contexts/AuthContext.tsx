@@ -165,9 +165,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
+    try {
+      // Clear local state first
+      setUser(null);
+      setSession(null);
+      
+      // Sign out from Supabase (this clears the session from storage)
+      await supabase.auth.signOut({ scope: 'local' });
+      
+      // Force clear all Supabase-related items from localStorage
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('sb-')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // Clear any other auth-related storage
+      localStorage.removeItem('supabase.auth.token');
+      sessionStorage.clear();
+      
+      // Force reload to clear any cached state and redirect to login
+      window.location.replace('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if there's an error, force clear everything
+      setUser(null);
+      setSession(null);
+      
+      // Nuclear option - clear everything
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+      } catch (e) {
+        console.error('Failed to clear storage:', e);
+      }
+      
+      // Force reload
+      window.location.replace('/');
+    }
   }, []);
 
   return (

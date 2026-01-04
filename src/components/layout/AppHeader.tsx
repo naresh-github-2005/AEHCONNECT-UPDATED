@@ -27,7 +27,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 
   const handleLogout = async () => {
     await signOut();
-    navigate('/');
+    // signOut already handles the redirect with window.location.href
   };
   
   return (

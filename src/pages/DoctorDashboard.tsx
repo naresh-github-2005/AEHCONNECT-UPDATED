@@ -22,11 +22,35 @@ const DoctorDashboard: React.FC = () => {
   const { user } = useAuth();
   const { dutyAssignments, lastUpdated, refreshData } = useData();
 
-  // Get current doctor's duty (mock: first doctor)
-  const myDuty = dutyAssignments.find((d) => d.doctorId === '1');
+  // Hardcoded today's duty
+  const myDuty = {
+    id: '1',
+    doctorId: '1',
+    unit: 'Ward',
+    dutyType: 'Retina Ward Rounds',
+    startTime: '07:00',
+    endTime: '09:00',
+    doctor: {
+      name: user?.name || 'Dr. Gokul',
+      department: 'Ophthalmology',
+      phone: '+91 9876543210'
+    }
+  };
   
-  // Get night duty doctor
-  const nightDutyDoctor = dutyAssignments.find((d) => d.dutyType === 'Night Duty');
+  // Hardcoded night duty doctor
+  const nightDutyDoctor = {
+    id: 'night-1',
+    doctorId: 'night-1',
+    unit: 'Emergency',
+    dutyType: 'Night Duty',
+    startTime: '20:00',
+    endTime: '08:00',
+    doctor: {
+      name: 'Dr. Savithri',
+      department: 'Ophthalmology',
+      phone: '+91 9876543211'
+    }
+  };
   
   // Get other doctors on duty today
   const otherDoctors = dutyAssignments.filter(
