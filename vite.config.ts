@@ -56,7 +56,8 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB limit
-        navigateFallback: null, // Don't cache navigation requests
+        navigateFallback: "/index.html", // Enable navigation fallback for SPA routing
+        navigateFallbackDenylist: [/^\/api/, /\.[^/]+$/], // Exclude API calls and files with extensions
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
