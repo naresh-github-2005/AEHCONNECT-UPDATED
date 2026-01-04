@@ -138,7 +138,12 @@ const Roster: React.FC = () => {
 
   const myAssignments = useMemo(() => {
     if (!user?.doctorId) return [];
-    return assignments.filter(a => a.doctor_id === user.doctorId);
+    // Only show the first Ward duty
+    const wardDuties = assignments.filter(a => 
+      a.doctor_id === user.doctorId && 
+      a.duty_type === 'Ward'
+    );
+    return wardDuties.slice(0, 1); // Show only first Ward duty
   }, [assignments, user?.doctorId]);
 
   const handleSwapRequest = (assignment: DutyWithDoctor) => {

@@ -1389,14 +1389,6 @@ export type Database = {
         Args: { p_admin_id: string; p_application_id: string; p_notes?: string }
         Returns: boolean
       }
-      calculate_leaves_taken: {
-        Args: {
-          p_doctor_id: string
-          p_leave_type: Database["public"]["Enums"]["leave_type"]
-          p_year?: number
-        }
-        Returns: number
-      }
       cancel_conference_application: {
         Args: { p_application_id: string; p_doctor_id: string }
         Returns: boolean
@@ -1470,15 +1462,6 @@ export type Database = {
           permission_end_time: string
           permission_hours: number
           permission_start_time: string
-        }[]
-      }
-      get_doctor_leave_summary: {
-        Args: { p_doctor_id: string }
-        Returns: {
-          leave_type: string
-          leaves_remaining: number
-          leaves_taken: number
-          max_leaves: number
         }[]
       }
       get_doctors_at_conferences: {

@@ -108,13 +108,25 @@ const Leave: React.FC = () => {
   const fetchLeaveBalance = async () => {
     if (!user?.doctorId) return;
     try {
+      // Fetch doctor's total annual leave limit
+      const { data: doctorData, error: doctorError } = await supabase
+        .from('doctors')
+        .select('total_annual_leave_limit')
+        .eq('id', user.doctorId)
+        .single();
+      
+      if (doctorError) throw doctorError;
+      
+      const totalLimit = doctorData?.total_annual_leave_limit || 25;
+      
+      // Fetch used leaves
       const { data, error } = await supabase.rpc("get_total_leaves_taken", { p_doctor_id: user.doctorId, p_year: new Date().getFullYear() });
       if (error) throw error;
       const usedLeaves = data || 0;
       setLeaveBalance({
-        total_leaves: 25,
+        total_leaves: totalLimit,
         used_leaves: usedLeaves,
-        remaining_leaves: Math.max(0, 25 - usedLeaves)
+        remaining_leaves: Math.max(0, totalLimit - usedLeaves)
       });
     } catch (error: any) {
       console.error("Error fetching leave balance:", error);
@@ -141,6 +153,19 @@ const Leave: React.FC = () => {
   const fetchPermissionBalance = async () => {
     if (!user?.doctorId) return;
     try {
+      // Fetch doctor's monthly permission hours limit
+      const { data: doctorData, error: doctorError } = await supabase
+        .from('doctors')
+        .select('monthly_permission_hours')
+        .eq('id', user.doctorId)
+        .single();
+      
+      if (doctorError) throw doctorError;
+      
+      const monthlyLimit = doctorData?.monthly_permission_hours || 3.0;
+      const totalMinutes = monthlyLimit * 60;
+      
+      // Fetch used permission hours
       const { data, error } = await supabase.rpc("get_permission_hours_used", {
         p_doctor_id: user.doctorId,
         p_year: new Date().getFullYear(),
@@ -149,9 +174,9 @@ const Leave: React.FC = () => {
       if (error) throw error;
       const usedMinutes = (data || 0) * 60; // Convert hours to minutes
       setPermissionBalance({
-        total_minutes: 180,
+        total_minutes: totalMinutes,
         used_minutes: usedMinutes,
-        remaining_minutes: Math.max(0, 180 - usedMinutes)
+        remaining_minutes: Math.max(0, totalMinutes - usedMinutes)
       });
     } catch (error: any) {
       console.error("Error fetching permission balance:", error);
@@ -374,9 +399,16 @@ const Leave: React.FC = () => {
           <CalendarDays className="h-5 w-5" />
           Apply for Leave
         </CardTitle>
-        <CardDescription>Submit a new leave request (Max {leaveBalance.total_leaves} days per year)</CardDescription>
+        <CardDescription>Submit a new leave request. All leave types (Casual, Medical, Emergency, Festival) are deducted from your total annual leave balance of {leaveBalance.total_leaves} days.</CardDescription>
       </CardHeader>
       <CardContent>
+        <Alert className="mb-4 border-blue-200 bg-blue-50">
+          <AlertTriangle className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-900">
+            <strong>Note:</strong> All leave types (Casual, Medical, Emergency, Festival) are counted against your total annual leave limit. You currently have <strong>{leaveBalance.remaining_leaves} days</strong> remaining.
+          </AlertDescription>
+        </Alert>
+
         {leaveBalance.remaining_leaves === 0 && (
           <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
@@ -457,7 +489,7 @@ const Leave: React.FC = () => {
           <Timer className="h-5 w-5" />
           Apply for Permission
         </CardTitle>
-        <CardDescription>Request short leave (Max 3 hours per month)</CardDescription>
+        <CardDescription>Request short leave (Max {Math.floor(permissionBalance.total_minutes / 60)} hours per month)</CardDescription>
       </CardHeader>
       <CardContent>
         {permissionBalance.remaining_minutes === 0 && (
