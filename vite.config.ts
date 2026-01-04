@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
         name: "Auro Connect - Smart Roster Management",
         short_name: "Auro Connect",
         description: "Modern duty roster management for healthcare professionals",
-        theme_color: "#0D7377",
+        theme_color: "#0496c7",
         background_color: "#0a0a0a",
         display: "standalone",
         orientation: "portrait",
