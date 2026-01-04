@@ -50,13 +50,6 @@ export type Database = {
             foreignKeyName: "academic_targets_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "academic_targets_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -155,13 +148,6 @@ export type Database = {
             foreignKeyName: "attendance_records_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "attendance_records_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -199,13 +185,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "camps"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "camp_assignments_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
           },
           {
             foreignKeyName: "camp_assignments_doctor_id_fkey"
@@ -299,13 +278,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "chat_channels"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "channel_members_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
           },
           {
             foreignKeyName: "channel_members_doctor_id_fkey"
@@ -463,13 +435,6 @@ export type Database = {
             foreignKeyName: "class_attendees_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "class_attendees_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -562,13 +527,6 @@ export type Database = {
             foreignKeyName: "classes_moderator_id_fkey"
             columns: ["moderator_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "classes_moderator_id_fkey"
-            columns: ["moderator_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -633,22 +591,8 @@ export type Database = {
             foreignKeyName: "conference_applications_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "conference_applications_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conference_applications_reviewed_by_fkey"
-            columns: ["reviewed_by"]
-            isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
           },
           {
             foreignKeyName: "conference_applications_reviewed_by_fkey"
@@ -716,13 +660,6 @@ export type Database = {
             foreignKeyName: "conference_duty_exclusions_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "conference_duty_exclusions_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -763,13 +700,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "doctor_daily_stats_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
           {
             foreignKeyName: "doctor_daily_stats_doctor_id_fkey"
             columns: ["doctor_id"]
@@ -824,13 +754,6 @@ export type Database = {
             foreignKeyName: "doctor_duty_stats_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "doctor_duty_stats_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -838,30 +761,18 @@ export type Database = {
       }
       doctors: {
         Row: {
-          can_do_camp: boolean
-          can_do_night: boolean
-          can_do_opd: boolean
-          can_do_ot: boolean
-          can_do_ward: boolean
           created_at: string | null
           department: string
           designation: Database["public"]["Enums"]["designation_level"] | null
           eligible_duties: string[] | null
           email: string | null
           festival_leaves_taken: number | null
-          fixed_off_days: string[] | null
-          health_constraints: string | null
           id: string
           is_active: boolean | null
-          max_annual_leaves: number
-          max_casual_leaves: number
-          max_emergency_leaves: number
           max_hours_per_week: number
-          max_medical_leaves: number
           max_night_duties_per_month: number
           monthly_permission_hours: number | null
           name: string
-          performance_score: number | null
           phone: string
           seniority: Database["public"]["Enums"]["seniority_level"]
           specialization: string | null
@@ -872,30 +783,18 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
-          can_do_camp?: boolean
-          can_do_night?: boolean
-          can_do_opd?: boolean
-          can_do_ot?: boolean
-          can_do_ward?: boolean
           created_at?: string | null
           department: string
           designation?: Database["public"]["Enums"]["designation_level"] | null
           eligible_duties?: string[] | null
           email?: string | null
           festival_leaves_taken?: number | null
-          fixed_off_days?: string[] | null
-          health_constraints?: string | null
           id?: string
           is_active?: boolean | null
-          max_annual_leaves?: number
-          max_casual_leaves?: number
-          max_emergency_leaves?: number
           max_hours_per_week?: number
-          max_medical_leaves?: number
           max_night_duties_per_month?: number
           monthly_permission_hours?: number | null
           name: string
-          performance_score?: number | null
           phone: string
           seniority?: Database["public"]["Enums"]["seniority_level"]
           specialization?: string | null
@@ -906,30 +805,18 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
-          can_do_camp?: boolean
-          can_do_night?: boolean
-          can_do_opd?: boolean
-          can_do_ot?: boolean
-          can_do_ward?: boolean
           created_at?: string | null
           department?: string
           designation?: Database["public"]["Enums"]["designation_level"] | null
           eligible_duties?: string[] | null
           email?: string | null
           festival_leaves_taken?: number | null
-          fixed_off_days?: string[] | null
-          health_constraints?: string | null
           id?: string
           is_active?: boolean | null
-          max_annual_leaves?: number
-          max_casual_leaves?: number
-          max_emergency_leaves?: number
           max_hours_per_week?: number
-          max_medical_leaves?: number
           max_night_duties_per_month?: number
           monthly_permission_hours?: number | null
           name?: string
-          performance_score?: number | null
           phone?: string
           seniority?: Database["public"]["Enums"]["seniority_level"]
           specialization?: string | null
@@ -980,13 +867,6 @@ export type Database = {
             foreignKeyName: "duty_assignments_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "duty_assignments_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -1030,13 +910,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["leave_status"] | null
         }
         Relationships: [
-          {
-            foreignKeyName: "leave_requests_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
           {
             foreignKeyName: "leave_requests_doctor_id_fkey"
             columns: ["doctor_id"]
@@ -1167,13 +1040,6 @@ export type Database = {
             foreignKeyName: "permission_requests_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "permission_requests_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -1211,13 +1077,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "publications_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
           {
             foreignKeyName: "publications_doctor_id_fkey"
             columns: ["doctor_id"]
@@ -1293,13 +1152,6 @@ export type Database = {
             foreignKeyName: "surgery_logs_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "surgery_logs_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -1354,13 +1206,6 @@ export type Database = {
             foreignKeyName: "swap_requests_requester_doctor_id_fkey"
             columns: ["requester_doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "swap_requests_requester_doctor_id_fkey"
-            columns: ["requester_doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -1370,13 +1215,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "duty_assignments"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "swap_requests_target_doctor_id_fkey"
-            columns: ["target_doctor_id"]
-            isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
           },
           {
             foreignKeyName: "swap_requests_target_doctor_id_fkey"
@@ -1435,13 +1273,6 @@ export type Database = {
             foreignKeyName: "test_marks_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "test_marks_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -1467,69 +1298,6 @@ export type Database = {
       }
     }
     Views: {
-      daily_doctor_availability: {
-        Row: {
-          availability_status: string | null
-          can_do_camp: boolean | null
-          can_do_night: boolean | null
-          can_do_opd: boolean | null
-          can_do_ot: boolean | null
-          can_do_ward: boolean | null
-          department: string | null
-          designation: Database["public"]["Enums"]["designation_level"] | null
-          doctor_id: string | null
-          doctor_name: string | null
-          eligible_duties: string[] | null
-          leave_end_date: string | null
-          leave_type: Database["public"]["Enums"]["leave_type"] | null
-          permission_end_time: string | null
-          permission_start_time: string | null
-          seniority: Database["public"]["Enums"]["seniority_level"] | null
-          specialty: Database["public"]["Enums"]["medical_specialty"] | null
-          unit: string | null
-        }
-        Insert: {
-          availability_status?: never
-          can_do_camp?: boolean | null
-          can_do_night?: boolean | null
-          can_do_opd?: boolean | null
-          can_do_ot?: boolean | null
-          can_do_ward?: boolean | null
-          department?: string | null
-          designation?: Database["public"]["Enums"]["designation_level"] | null
-          doctor_id?: string | null
-          doctor_name?: string | null
-          eligible_duties?: string[] | null
-          leave_end_date?: never
-          leave_type?: never
-          permission_end_time?: never
-          permission_start_time?: never
-          seniority?: Database["public"]["Enums"]["seniority_level"] | null
-          specialty?: Database["public"]["Enums"]["medical_specialty"] | null
-          unit?: string | null
-        }
-        Update: {
-          availability_status?: never
-          can_do_camp?: boolean | null
-          can_do_night?: boolean | null
-          can_do_opd?: boolean | null
-          can_do_ot?: boolean | null
-          can_do_ward?: boolean | null
-          department?: string | null
-          designation?: Database["public"]["Enums"]["designation_level"] | null
-          doctor_id?: string | null
-          doctor_name?: string | null
-          eligible_duties?: string[] | null
-          leave_end_date?: never
-          leave_type?: never
-          permission_end_time?: never
-          permission_start_time?: never
-          seniority?: Database["public"]["Enums"]["seniority_level"] | null
-          specialty?: Database["public"]["Enums"]["medical_specialty"] | null
-          unit?: string | null
-        }
-        Relationships: []
-      }
       doctors_at_conference_today: {
         Row: {
           class_id: string | null
@@ -1550,13 +1318,6 @@ export type Database = {
           unit: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "conference_duty_exclusions_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
           {
             foreignKeyName: "conference_duty_exclusions_doctor_id_fkey"
             columns: ["doctor_id"]
@@ -1587,13 +1348,6 @@ export type Database = {
             foreignKeyName: "leave_requests_doctor_id_fkey"
             columns: ["doctor_id"]
             isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
-          {
-            foreignKeyName: "leave_requests_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
             referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
@@ -1616,13 +1370,6 @@ export type Database = {
           unit: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "permission_requests_doctor_id_fkey"
-            columns: ["doctor_id"]
-            isOneToOne: false
-            referencedRelation: "daily_doctor_availability"
-            referencedColumns: ["doctor_id"]
-          },
           {
             foreignKeyName: "permission_requests_doctor_id_fkey"
             columns: ["doctor_id"]

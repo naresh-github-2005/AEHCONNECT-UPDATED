@@ -103,13 +103,19 @@ const CampManagement: React.FC = () => {
     
     if (assignmentsData) setAssignments(assignmentsData as CampAssignment[]);
 
+    // Get all active doctors - filter by eligible_duties containing 'Camp' in the UI
     const { data: doctorsData } = await supabase
       .from('doctors')
       .select('*')
-      .eq('is_active', true)
-      .eq('can_do_camp', true);
+      .eq('is_active', true);
     
-    if (doctorsData) setDoctors(doctorsData);
+    // Filter doctors who can do camp duty based on eligible_duties
+    if (doctorsData) {
+      const campEligibleDoctors = doctorsData.filter(d => 
+        d.eligible_duties && d.eligible_duties.includes('Camp')
+      );
+      setDoctors(campEligibleDoctors);
+    }
 
     setIsLoading(false);
   };

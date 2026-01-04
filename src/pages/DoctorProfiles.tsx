@@ -34,24 +34,11 @@ interface Doctor {
   seniority: SeniorityLevel;
   specialty: MedicalSpecialty;
   designation: DesignationLevel;
-  performance_score: number;
   unit: string;
   eligible_duties: string[] | null;
   max_night_duties_per_month: number;
   max_hours_per_week: number;
-  fixed_off_days: string[] | null;
-  health_constraints: string | null;
-  can_do_opd: boolean;
-  can_do_ot: boolean;
-  can_do_ward: boolean;
-  can_do_camp: boolean;
-  can_do_night: boolean;
   is_active: boolean;
-  // Leave limits
-  max_casual_leaves: number;
-  max_medical_leaves: number;
-  max_emergency_leaves: number;
-  max_annual_leaves: number;
 }
 
 interface LeaveSummary {
@@ -151,41 +138,33 @@ const DoctorProfiles: React.FC = () => {
       });
     }
 
-    // Get doctor's leave limits
-    const { data: doctor } = await supabase
-      .from('doctors')
-      .select('max_casual_leaves, max_medical_leaves, max_emergency_leaves, max_annual_leaves')
-      .eq('id', doctorId)
-      .single();
-
-    if (doctor) {
-      setLeaveSummary([
-        {
-          leave_type: 'Casual',
-          max_leaves: doctor.max_casual_leaves || 12,
-          leaves_taken: leavesTaken.Casual,
-          leaves_remaining: Math.max(0, (doctor.max_casual_leaves || 12) - leavesTaken.Casual),
-        },
-        {
-          leave_type: 'Medical',
-          max_leaves: doctor.max_medical_leaves || 15,
-          leaves_taken: leavesTaken.Medical,
-          leaves_remaining: Math.max(0, (doctor.max_medical_leaves || 15) - leavesTaken.Medical),
-        },
-        {
-          leave_type: 'Emergency',
-          max_leaves: doctor.max_emergency_leaves || 5,
-          leaves_taken: leavesTaken.Emergency,
-          leaves_remaining: Math.max(0, (doctor.max_emergency_leaves || 5) - leavesTaken.Emergency),
-        },
-        {
-          leave_type: 'Annual',
-          max_leaves: doctor.max_annual_leaves || 20,
-          leaves_taken: leavesTaken.Annual,
-          leaves_remaining: Math.max(0, (doctor.max_annual_leaves || 20) - leavesTaken.Annual),
-        },
-      ]);
-    }
+    // Set default leave limits (no per-doctor customization)
+    setLeaveSummary([
+      {
+        leave_type: 'Casual',
+        max_leaves: 12,
+        leaves_taken: leavesTaken.Casual,
+        leaves_remaining: Math.max(0, 12 - leavesTaken.Casual),
+      },
+      {
+        leave_type: 'Medical',
+        max_leaves: 15,
+        leaves_taken: leavesTaken.Medical,
+        leaves_remaining: Math.max(0, 15 - leavesTaken.Medical),
+      },
+      {
+        leave_type: 'Emergency',
+        max_leaves: 5,
+        leaves_taken: leavesTaken.Emergency,
+        leaves_remaining: Math.max(0, 5 - leavesTaken.Emergency),
+      },
+      {
+        leave_type: 'Annual',
+        max_leaves: 20,
+        leaves_taken: leavesTaken.Annual,
+        leaves_remaining: Math.max(0, 20 - leavesTaken.Annual),
+      },
+    ]);
   };
 
   const fetchDoctors = async () => {
@@ -213,22 +192,9 @@ const DoctorProfiles: React.FC = () => {
         designation: selectedDoctor.designation || 'pg',
         seniority: selectedDoctor.seniority || 'resident',
         specialty: selectedDoctor.specialty || 'general',
-        performance_score: selectedDoctor.performance_score || 70,
         max_night_duties_per_month: selectedDoctor.max_night_duties_per_month,
         max_hours_per_week: selectedDoctor.max_hours_per_week,
-        fixed_off_days: selectedDoctor.fixed_off_days,
-        health_constraints: selectedDoctor.health_constraints,
-        can_do_opd: selectedDoctor.can_do_opd,
-        can_do_ot: selectedDoctor.can_do_ot,
-        can_do_ward: selectedDoctor.can_do_ward,
-        can_do_camp: selectedDoctor.can_do_camp,
-        can_do_night: selectedDoctor.can_do_night,
         is_active: selectedDoctor.is_active,
-        // Leave limits
-        max_casual_leaves: selectedDoctor.max_casual_leaves || 12,
-        max_medical_leaves: selectedDoctor.max_medical_leaves || 15,
-        max_emergency_leaves: selectedDoctor.max_emergency_leaves || 5,
-        max_annual_leaves: selectedDoctor.max_annual_leaves || 20,
       })
       .eq('id', selectedDoctor.id);
     
@@ -279,15 +245,10 @@ const DoctorProfiles: React.FC = () => {
       <div className="grid grid-cols-4 gap-2">
         {Object.entries(designationLabels).map(([key, label]) => {
           const count = doctors.filter(d => (d.designation || 'pg') === key).length;
-          const designationDoctors = doctors.filter(d => (d.designation || 'pg') === key);
-          const avgScore = designationDoctors.length > 0 
-            ? Math.round(designationDoctors.reduce((sum, d) => sum + (d.performance_score || 70), 0) / designationDoctors.length)
-            : 0;
           return (
             <div key={key} className={`p-3 rounded-lg text-center border ${designationColors[key as DesignationLevel]}`}>
               <p className="text-xl font-bold">{count}</p>
               <p className="text-xs font-medium">{label}s</p>
-              <p className="text-[10px] text-muted-foreground">Avg: {avgScore}%</p>
             </div>
           );
         })}
@@ -324,9 +285,6 @@ const DoctorProfiles: React.FC = () => {
                       <span className="text-tiny text-muted-foreground capitalize">
                         {specialtyLabels[doctor.specialty || 'general']}
                       </span>
-                      <span className="text-tiny font-medium text-primary">
-                        {doctor.performance_score || 70}%
-                      </span>
                     </div>
                   </div>
                 </div>
@@ -339,20 +297,22 @@ const DoctorProfiles: React.FC = () => {
                     <Clock className="w-3 h-3" />
                     <span>{doctor.max_hours_per_week}h/wk</span>
                   </div>
-                  {doctor.health_constraints && (
-                    <Heart className="w-4 h-4 text-red-500" />
-                  )}
                   <Edit2 className="w-4 h-4" />
                 </div>
               </div>
               
-              {/* Capabilities */}
+              {/* Eligible Duties Display */}
               <div className="flex flex-wrap gap-1.5 mt-3">
-                {doctor.can_do_opd && <Badge variant="secondary" className="text-[9px]">OPD</Badge>}
-                {doctor.can_do_ot && <Badge variant="secondary" className="text-[9px]">OT</Badge>}
-                {doctor.can_do_ward && <Badge variant="secondary" className="text-[9px]">Ward</Badge>}
-                {doctor.can_do_night && <Badge variant="secondary" className="text-[9px]">Night</Badge>}
-                {doctor.can_do_camp && <Badge variant="secondary" className="text-[9px]">Camp</Badge>}
+                {doctor.eligible_duties && doctor.eligible_duties.length > 0 ? (
+                  doctor.eligible_duties.slice(0, 5).map((duty) => (
+                    <Badge key={duty} variant="secondary" className="text-[9px]">{duty}</Badge>
+                  ))
+                ) : (
+                  <span className="text-xs text-muted-foreground">No duties assigned</span>
+                )}
+                {doctor.eligible_duties && doctor.eligible_duties.length > 5 && (
+                  <Badge variant="outline" className="text-[9px]">+{doctor.eligible_duties.length - 5}</Badge>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -428,16 +388,6 @@ const DoctorProfiles: React.FC = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Performance Score</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={selectedDoctor.performance_score || 70}
-                    onChange={(e) => setSelectedDoctor({ ...selectedDoctor, performance_score: parseInt(e.target.value) || 70 })}
-                  />
-                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -466,133 +416,6 @@ const DoctorProfiles: React.FC = () => {
                     value={selectedDoctor.max_hours_per_week}
                     onChange={(e) => setSelectedDoctor({ ...selectedDoctor, max_hours_per_week: parseInt(e.target.value) })}
                   />
-                </div>
-              </div>
-
-              <div>
-                <Label className="flex items-center gap-1.5">
-                  <Heart className="w-3.5 h-3.5" />
-                  Health Constraints
-                </Label>
-                <Input
-                  value={selectedDoctor.health_constraints || ''}
-                  onChange={(e) => setSelectedDoctor({ ...selectedDoctor, health_constraints: e.target.value || null })}
-                  placeholder="e.g., No night duties due to health condition"
-                />
-              </div>
-
-              {/* Leave Limits Section */}
-              <div className="space-y-3">
-                <Label className="flex items-center gap-1.5">
-                  <CalendarDays className="w-3.5 h-3.5" />
-                  Leave Limits (Per Year)
-                </Label>
-                
-                {/* Leave Summary Display */}
-                {leaveSummary.length > 0 && (
-                  <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg">
-                    {leaveSummary.map((summary) => (
-                      <div key={summary.leave_type} className="text-center p-2 rounded bg-background">
-                        <p className="text-tiny text-muted-foreground">{summary.leave_type}</p>
-                        <p className="text-sm font-medium">
-                          <span className={summary.leaves_remaining <= 2 ? 'text-destructive' : 'text-success'}>
-                            {summary.leaves_remaining}
-                          </span>
-                          <span className="text-muted-foreground">/{summary.max_leaves}</span>
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {summary.leaves_taken} taken
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Casual Leaves</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={30}
-                      value={selectedDoctor.max_casual_leaves || 12}
-                      onChange={(e) => setSelectedDoctor({ ...selectedDoctor, max_casual_leaves: parseInt(e.target.value) || 12 })}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Medical Leaves</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={30}
-                      value={selectedDoctor.max_medical_leaves || 15}
-                      onChange={(e) => setSelectedDoctor({ ...selectedDoctor, max_medical_leaves: parseInt(e.target.value) || 15 })}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Emergency Leaves</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={15}
-                      value={selectedDoctor.max_emergency_leaves || 5}
-                      onChange={(e) => setSelectedDoctor({ ...selectedDoctor, max_emergency_leaves: parseInt(e.target.value) || 5 })}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Annual Leaves</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={45}
-                      value={selectedDoctor.max_annual_leaves || 20}
-                      onChange={(e) => setSelectedDoctor({ ...selectedDoctor, max_annual_leaves: parseInt(e.target.value) || 20 })}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Label>Duty Capabilities</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-                    <span className="text-sm">OPD</span>
-                    <Switch
-                      checked={selectedDoctor.can_do_opd}
-                      onCheckedChange={(checked) => setSelectedDoctor({ ...selectedDoctor, can_do_opd: checked })}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-                    <span className="text-sm">OT</span>
-                    <Switch
-                      checked={selectedDoctor.can_do_ot}
-                      onCheckedChange={(checked) => setSelectedDoctor({ ...selectedDoctor, can_do_ot: checked })}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-                    <span className="text-sm">Ward</span>
-                    <Switch
-                      checked={selectedDoctor.can_do_ward}
-                      onCheckedChange={(checked) => setSelectedDoctor({ ...selectedDoctor, can_do_ward: checked })}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-                    <span className="text-sm">Night Duty</span>
-                    <Switch
-                      checked={selectedDoctor.can_do_night}
-                      onCheckedChange={(checked) => setSelectedDoctor({ ...selectedDoctor, can_do_night: checked })}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50 col-span-2">
-                    <div className="flex items-center gap-2">
-                      <Tent className="w-4 h-4" />
-                      <span className="text-sm">Camp Duty</span>
-                    </div>
-                    <Switch
-                      checked={selectedDoctor.can_do_camp}
-                      onCheckedChange={(checked) => setSelectedDoctor({ ...selectedDoctor, can_do_camp: checked })}
-                    />
-                  </div>
                 </div>
               </div>
 

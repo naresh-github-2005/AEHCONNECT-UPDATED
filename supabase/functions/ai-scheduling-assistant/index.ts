@@ -149,29 +149,41 @@ REQUIRED JSON FORMAT:
   "ruleViolations": []
 }`;
 
+    // Helper to check if eligible_duties contains duty categories
+    const canDoDutyCategory = (eligibleDuties: string[], category: string): boolean => {
+      const categoryMap: Record<string, string[]> = {
+        opd: ['OPD'],
+        ot: ['OT', 'Cataract OT', 'Retina OT', 'Glaucoma OT', 'Cornea OT', 'Neuro OT', 'ORBIT OT', 'Pediatrics OT', 'IOL OT'],
+        ward: ['Ward'],
+        camp: ['Camp'],
+        night: ['Night Duty']
+      };
+      return eligibleDuties.some(duty => categoryMap[category]?.includes(duty));
+    };
+
     // Build detailed doctor info with constraints and performance data
-    const doctorDetails = doctors?.map((d: any) => ({
-      id: d.id,
-      name: d.name,
-      department: d.department,
-      designation: d.designation || 'pg',
-      seniority: d.seniority || 'resident',
-      specialty: d.specialty || 'general',
-      performanceScore: d.performance_score || 70,
-      eligibleDuties: d.eligible_duties || [],
-      unit: d.unit || 'Unit 1',
-      maxNightDutiesPerMonth: d.max_night_duties_per_month || 8,
-      maxHoursPerWeek: d.max_hours_per_week || 48,
-      fixedOffDays: d.fixed_off_days || [],
-      healthConstraints: d.health_constraints || null,
-      capabilities: {
-        canDoOpd: d.can_do_opd !== false,
-        canDoOt: d.can_do_ot !== false,
-        canDoWard: d.can_do_ward !== false,
-        canDoCamp: d.can_do_camp === true,
-        canDoNight: d.can_do_night !== false
-      }
-    })) || [];
+    const doctorDetails = doctors?.map((d: any) => {
+      const eligibleDuties = d.eligible_duties || [];
+      return {
+        id: d.id,
+        name: d.name,
+        department: d.department,
+        designation: d.designation || 'pg',
+        seniority: d.seniority || 'resident',
+        specialty: d.specialty || 'general',
+        eligibleDuties: eligibleDuties,
+        unit: d.unit || 'Unit 1',
+        maxNightDutiesPerMonth: d.max_night_duties_per_month || 8,
+        maxHoursPerWeek: d.max_hours_per_week || 48,
+        capabilities: {
+          canDoOpd: canDoDutyCategory(eligibleDuties, 'opd'),
+          canDoOt: canDoDutyCategory(eligibleDuties, 'ot'),
+          canDoWard: canDoDutyCategory(eligibleDuties, 'ward'),
+          canDoCamp: canDoDutyCategory(eligibleDuties, 'camp'),
+          canDoNight: canDoDutyCategory(eligibleDuties, 'night')
+        }
+      };
+    }) || [];
 
     // Build duty stats context
     const statsContext = dutyStats?.map((s: any) => ({

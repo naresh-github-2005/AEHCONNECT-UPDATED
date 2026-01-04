@@ -17,18 +17,10 @@ export interface Doctor {
   seniority?: SeniorityLevel;
   specialty?: MedicalSpecialty;
   designation?: DesignationLevel;
-  performance_score?: number;
   eligible_duties?: string[];
   unit?: string;
   max_night_duties_per_month?: number;
   max_hours_per_week?: number;
-  fixed_off_days?: string[];
-  health_constraints?: string;
-  can_do_opd?: boolean;
-  can_do_ot?: boolean;
-  can_do_ward?: boolean;
-  can_do_camp?: boolean;
-  can_do_night?: boolean;
 }
 
 export interface Camp {
@@ -117,13 +109,8 @@ export const doctors: Doctor[] = [
     designation: 'mo',
     seniority: 'consultant',
     specialty: 'cataract',
-    performance_score: 88,
     unit: 'Unit 3',
     eligible_duties: ['Cataract OT', 'OPD', 'Today Doctor'],
-    can_do_opd: true,
-    can_do_ot: true,
-    can_do_camp: true,
-    can_do_night: false,
   },
   { 
     id: '2', 
@@ -133,12 +120,8 @@ export const doctors: Doctor[] = [
     designation: 'fellow',
     seniority: 'fellow',
     specialty: 'glaucoma',
-    performance_score: 82,
     unit: 'Unit 2',
     eligible_duties: ['Glaucoma OT', 'Cataract OT', 'Night Duty'],
-    can_do_opd: true,
-    can_do_ot: true,
-    can_do_night: true,
   },
   { 
     id: '3', 
@@ -148,12 +131,8 @@ export const doctors: Doctor[] = [
     designation: 'pg',
     seniority: 'resident',
     specialty: 'general',
-    performance_score: 64,
     unit: 'Unit 1',
     eligible_duties: ['OPD', 'Ward', 'Night Duty'],
-    can_do_opd: true,
-    can_do_ot: false,
-    can_do_night: true,
   },
   { 
     id: '4', 
@@ -163,13 +142,8 @@ export const doctors: Doctor[] = [
     designation: 'mo',
     seniority: 'consultant',
     specialty: 'retina',
-    performance_score: 91,
     unit: 'Unit 4',
     eligible_duties: ['Retina OT', 'Cataract OT', 'Today Doctor'],
-    can_do_opd: true,
-    can_do_ot: true,
-    can_do_camp: true,
-    can_do_night: false,
   },
   { 
     id: '5', 
@@ -179,12 +153,8 @@ export const doctors: Doctor[] = [
     designation: 'pg',
     seniority: 'resident',
     specialty: 'general',
-    performance_score: 60,
     unit: 'Unit 2',
     eligible_duties: ['OPD', 'Night Duty'],
-    can_do_opd: true,
-    can_do_ot: false,
-    can_do_night: true,
   },
   { 
     id: '6', 
@@ -194,13 +164,8 @@ export const doctors: Doctor[] = [
     designation: 'consultant',
     seniority: 'senior_consultant',
     specialty: 'cornea',
-    performance_score: 95,
     unit: 'Unit 1',
     eligible_duties: ['Cornea OT', 'Retina OT', 'Today Doctor', 'OPD'],
-    can_do_opd: true,
-    can_do_ot: true,
-    can_do_camp: true,
-    can_do_night: false,
   },
   { 
     id: '7', 
@@ -210,12 +175,8 @@ export const doctors: Doctor[] = [
     designation: 'fellow',
     seniority: 'fellow',
     specialty: 'retina',
-    performance_score: 78,
     unit: 'Unit 3',
     eligible_duties: ['Retina OT', 'Cataract OT', 'Night Duty', 'OPD'],
-    can_do_opd: true,
-    can_do_ot: true,
-    can_do_night: true,
   },
   { 
     id: '8', 
@@ -225,13 +186,8 @@ export const doctors: Doctor[] = [
     designation: 'mo',
     seniority: 'consultant',
     specialty: 'pediatric',
-    performance_score: 85,
     unit: 'Unit 4',
     eligible_duties: ['Cataract OT', 'OPD', 'Today Doctor'],
-    can_do_opd: true,
-    can_do_ot: true,
-    can_do_camp: true,
-    can_do_night: false,
   },
 ];
 

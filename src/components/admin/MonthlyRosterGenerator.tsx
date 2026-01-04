@@ -20,14 +20,24 @@ interface DbDoctor {
   name: string;
   seniority: string;
   specialty: string;
-  can_do_opd: boolean;
-  can_do_ot: boolean;
-  can_do_ward: boolean;
-  can_do_camp: boolean;
-  can_do_night: boolean;
+  eligible_duties: string[] | null;
   max_night_duties_per_month: number;
-  fixed_off_days: string[] | null;
 }
+
+// Helper function to check if doctor can do a specific duty category
+const canDoDutyCategory = (eligibleDuties: string[] | null, category: 'opd' | 'ot' | 'ward' | 'camp' | 'night'): boolean => {
+  if (!eligibleDuties) return false;
+  
+  const categoryMap: Record<string, string[]> = {
+    opd: ['OPD'],
+    ot: ['OT', 'Cataract OT', 'Retina OT', 'Glaucoma OT', 'Cornea OT', 'Neuro OT', 'ORBIT OT', 'Pediatrics OT', 'IOL OT'],
+    ward: ['Ward'],
+    camp: ['Camp'],
+    night: ['Night Duty']
+  };
+  
+  return eligibleDuties.some(duty => categoryMap[category].includes(duty));
+};
 
 interface GenerationProgress {
   current: number;
@@ -57,7 +67,7 @@ const MonthlyRosterGenerator: React.FC = () => {
     const fetchData = async () => {
       const { data: doctors } = await supabase
         .from('doctors')
-        .select('id, name, seniority, specialty, can_do_opd, can_do_ot, can_do_ward, can_do_camp, can_do_night, max_night_duties_per_month, fixed_off_days')
+        .select('id, name, seniority, specialty, eligible_duties, max_night_duties_per_month')
         .eq('is_active', true);
       
       if (doctors) {

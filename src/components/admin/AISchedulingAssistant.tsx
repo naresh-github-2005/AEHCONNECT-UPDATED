@@ -52,14 +52,23 @@ interface DbDoctor {
   specialty: MedicalSpecialty;
   max_night_duties_per_month: number;
   max_hours_per_week: number;
-  fixed_off_days: string[] | null;
-  health_constraints: string | null;
-  can_do_opd: boolean;
-  can_do_ot: boolean;
-  can_do_ward: boolean;
-  can_do_camp: boolean;
-  can_do_night: boolean;
+  eligible_duties: string[] | null;
 }
+
+// Helper function to check if doctor can do a specific duty category
+const canDoDutyCategory = (eligibleDuties: string[] | null, category: 'opd' | 'ot' | 'ward' | 'camp' | 'night'): boolean => {
+  if (!eligibleDuties) return false;
+  
+  const categoryMap: Record<string, string[]> = {
+    opd: ['OPD'],
+    ot: ['OT', 'Cataract OT', 'Retina OT', 'Glaucoma OT', 'Cornea OT', 'Neuro OT', 'ORBIT OT', 'Pediatrics OT', 'IOL OT'],
+    ward: ['Ward'],
+    camp: ['Camp'],
+    night: ['Night Duty']
+  };
+  
+  return eligibleDuties.some(duty => categoryMap[category].includes(duty));
+};
 
 interface DbCamp {
   id: string;
