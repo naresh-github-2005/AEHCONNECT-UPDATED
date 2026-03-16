@@ -87,8 +87,8 @@ aehconnect-new/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/aehconnect.git
-   cd aehconnect
+   git clone https://github.com/naresh-github-2005/AEHCONNECT-UPDATED.git
+   cd AEHCONNECT-UPDATED
    ```
 
 2. **Install dependencies**
