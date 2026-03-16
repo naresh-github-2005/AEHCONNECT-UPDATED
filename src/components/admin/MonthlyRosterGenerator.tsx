@@ -11,6 +11,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMont
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
+import { RosterScheduler } from '@/lib/rosterScheduler';
 
 type DutyType = Database['public']['Enums']['duty_type'];
 type DbDutyType = Database['public']['Enums']['duty_type'];
@@ -100,38 +101,52 @@ const MonthlyRosterGenerator: React.FC = () => {
       return;
     }
 
-    // Get current user session for authorization
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !session) {
-      toast.error('You must be logged in to generate roster');
-      return;
-    }
-
     setIsGenerating(true);
     setProgress({ current: 0, total: daysInMonth.length, currentDate: '', status: 'generating' });
 
     try {
-      // Get leave requests for the month
-      const { data: leaveRequests } = await supabase
-        .from('leave_requests')
-        .select('*')
-        .eq('status', 'approved')
-        .lte('start_date', format(monthEnd, 'yyyy-MM-dd'))
-        .gte('end_date', format(monthStart, 'yyyy-MM-dd'));
+      console.log('[MonthlyRosterGenerator] Starting local rule-based generation...');
+      
+      // Step 1: Create rosters entry (tables should be visible now)
+      const monthYear = format(targetMonth, 'yyyy-MM');
+      
+      // Try to get existing roster
+      const { data: existingRosterData, error: existingError } = await supabase
+        .from('rosters')
+        .select('id')
+        .eq('month', monthYear)
+        .maybeSingle();
 
-      // Get camps for the month
-      const { data: camps } = await supabase
-        .from('camps')
-        .select('*')
-        .gte('camp_date', format(monthStart, 'yyyy-MM-dd'))
-        .lte('camp_date', format(monthEnd, 'yyyy-MM-dd'));
+      let rosterId: string;
+      
+      if (existingRosterData && !existingError) {
+        rosterId = existingRosterData.id;
+        console.log(`[MonthlyRosterGenerator] Using existing roster: ${rosterId}`);
+      } else {
+        // Create new roster
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: newRosterData, error: rosterError } = await supabase
+          .from('rosters')
+          .insert({
+            month: monthYear,
+            generated_by: user?.id || null,
+            status: 'DRAFT'
+          })
+          .select('id')
+          .single();
 
-      // Get existing duty stats
-      const { data: dutyStats } = await supabase
-        .from('doctor_duty_stats')
-        .select('*')
-        .eq('month', targetMonth.getMonth() + 1)
-        .eq('year', targetMonth.getFullYear());
+        if (rosterError || !newRosterData) {
+          console.error('[MonthlyRosterGenerator] Error creating roster:', rosterError);
+          throw new Error(`Failed to create roster: ${rosterError?.message || 'Unknown error'}`);
+        }
+        
+        rosterId = newRosterData.id;
+        console.log(`[MonthlyRosterGenerator] Created new roster: ${rosterId}`);
+      }
+      
+      // Initialize the local scheduler
+      const scheduler = new RosterScheduler();
+      await scheduler.initialize(targetMonth);
 
       let successCount = 0;
       let errorCount = 0;
@@ -147,103 +162,53 @@ const MonthlyRosterGenerator: React.FC = () => {
           currentDate: format(day, 'MMM d')
         }));
 
-        // Check if assignments already exist for this day
-        const { count: existingCount } = await supabase
+        // Check if assignments already exist for this day in duty_assignments
+        const { count: existingCount } = await (supabase as any)
           .from('duty_assignments')
           .select('*', { count: 'exact', head: true })
           .eq('duty_date', dateStr);
 
         if (existingCount && existingCount > 0) {
-          console.log(`Skipping ${dateStr} - already has ${existingCount} assignments`);
+          console.log(`[${dateStr}] Skipping - already has ${existingCount} assignments in duty_assignments`);
+          successCount++; // Count as success since it's already done
           continue;
         }
 
-        // Filter relevant leave requests for this date
-        const relevantLeaves = (leaveRequests || []).filter(l => {
-          const start = new Date(l.start_date);
-          const end = new Date(l.end_date);
-          return day >= start && day <= end;
-        });
-
         try {
-          console.log(`[${dateStr}] Sending request with ${dbDoctors.length} doctors...`);
+          console.log(`[${dateStr}] Generating assignments...`);
           
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-scheduling-assistant`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({
-                doctors: dbDoctors,
-                leaveRequests: relevantLeaves,
-                existingAssignments: [],
-                targetDate: dateStr,
-                dutyStats: dutyStats || [],
-                camps: (camps || []).filter(c => c.camp_date === dateStr),
-              }),
-            }
-          );
-
-          console.log(`[${dateStr}] Response status: ${response.status}`);
-          const responseText = await response.text();
-          console.log(`[${dateStr}] Response body (first 500 chars):`, responseText.substring(0, 500));
-
-          if (!response.ok) {
-            let errorData;
-            try {
-              errorData = JSON.parse(responseText);
-            } catch {
-              errorData = { rawError: responseText };
-            }
-            console.error(`Error generating for ${dateStr}:`, errorData);
-            errorCount++;
-            continue;
-          }
-
-          const data = JSON.parse(responseText);
+          // Generate assignments using local rule-based scheduler
+          const assignments = await scheduler.generateDayAssignments(dateStr);
           
-          console.log(`[${dateStr}] Parsed response - Assignments count:`, data.assignments?.length || 0);
-          
-          if (data.assignments && data.assignments.length > 0) {
-            // Save assignments to database - include all valid duty types
-            const validDutyTypes: DbDutyType[] = [
-              'OPD', 'OT', 'Ward', 'Night Duty', 'Camp', 'Emergency', 
-              'Cataract OT', 'Retina OT', 'Glaucoma OT', 'Cornea OT', 'Today Doctor',
-              'Neuro OT', 'ORBIT OT', 'Pediatrics OT', 'IOL OT', 'Daycare', 'Physician', 'Block Room'
-            ];
+          if (assignments.length > 0) {
+            const result = await scheduler.saveAssignments(assignments);
             
-            const dbAssignments = data.assignments
-              .filter((a: any) => validDutyTypes.includes(a.dutyType as DbDutyType))
-              .map((a: any) => ({
-                doctor_id: a.doctorId,
-                duty_date: dateStr,
-                duty_type: a.dutyType as DbDutyType,
-                unit: a.unit || 'Unit 1',
-                start_time: a.startTime,
-                end_time: a.endTime,
-              }));
-
-            const { error: insertError } = await supabase
-              .from('duty_assignments')
-              .insert(dbAssignments);
-
-            if (insertError) {
-              console.error(`Error saving assignments for ${dateStr}:`, insertError);
-              errorCount++;
-            } else {
+            if (result.success) {
+              console.log(`[${dateStr}] ✅ Saved ${assignments.length} assignments`);
               successCount++;
+            } else {
+              console.error(`[${dateStr}] ❌ Failed to save: ${result.error}`);
+              errorCount++;
             }
+          } else {
+            console.warn(`[${dateStr}] ⚠️ No assignments generated`);
+            errorCount++;
           }
         } catch (err) {
-          console.error(`Exception generating for ${dateStr}:`, err);
+          console.error(`[${dateStr}] ❌ Exception:`, err);
           errorCount++;
         }
 
-        // Delay between requests to avoid rate limiting (2 seconds)
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Small delay to avoid overwhelming the database
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      // Update roster status to FINAL if all days succeeded
+      if (errorCount === 0) {
+        await (supabase as any)
+          .from('rosters')
+          .update({ status: 'FINAL' })
+          .eq('id', rosterId);
       }
 
       setProgress(prev => ({ ...prev, status: 'complete' }));
@@ -254,15 +219,40 @@ const MonthlyRosterGenerator: React.FC = () => {
         details: `Generated ${successCount} days for ${format(targetMonth, 'MMMM yyyy')}. Errors: ${errorCount}`,
       });
 
+      // Show summary with statistics
+      const stats = scheduler.getStats();
+      const unitAssignments = scheduler.getMonthlyUnitAssignments();
+      const unitDayCounts = scheduler.getUnitDayCounts();
+      
+      console.log('[MonthlyRosterGenerator] Final Statistics:');
+      stats.forEach((stat, doctorId) => {
+        const doctor = dbDoctors.find(d => d.id === doctorId);
+        const designation = doctor?.designation?.toLowerCase();
+        
+        // Show monthly unit assignment for Consultants/MOs
+        const assignedUnit = unitAssignments.get(doctorId);
+        if (assignedUnit && (designation === 'consultant' || designation === 'mo')) {
+          console.log(`  ${doctor?.name} (${designation?.toUpperCase()}): Assigned to ${assignedUnit} for entire month - ${stat.total_duties} duties`);
+        }
+        // Show unit day counts for PGs/Fellows
+        else {
+          const dayCounts = unitDayCounts.get(doctorId);
+          const unitBreakdown = dayCounts ? 
+            Array.from(dayCounts.entries()).map(([unit, count]) => `${unit}: ${count}d`).join(', ') : 
+            'No assignments';
+          console.log(`  ${doctor?.name} (${designation?.toUpperCase()}): ${stat.total_duties} duties - ${unitBreakdown}`);
+        }
+      });
+
       if (errorCount === 0) {
-        toast.success(`Successfully generated roster for ${format(targetMonth, 'MMMM yyyy')}!`);
+        toast.success(`Successfully generated roster for ${format(targetMonth, 'MMMM yyyy')}! ${successCount} days scheduled.`);
       } else {
         toast.warning(`Generated roster with ${errorCount} errors. ${successCount} days completed.`);
       }
-    } catch (error) {
-      console.error('Error generating monthly roster:', error);
+    } catch (error: any) {
+      console.error('[MonthlyRosterGenerator] Fatal error:', error);
       setProgress(prev => ({ ...prev, status: 'error' }));
-      toast.error('Failed to generate monthly roster');
+      toast.error(error.message || 'Failed to generate monthly roster');
     } finally {
       setIsGenerating(false);
     }
@@ -302,7 +292,7 @@ const MonthlyRosterGenerator: React.FC = () => {
             <div>
               <CardTitle className="text-lg">Monthly Roster Generator</CardTitle>
               <p className="text-tiny text-muted-foreground mt-0.5">
-                Generate AI-powered roster for an entire month
+                Rule-based roster generation following hospital policies
               </p>
             </div>
           </div>
@@ -360,7 +350,7 @@ const MonthlyRosterGenerator: React.FC = () => {
             </div>
             <Progress value={(progress.current / progress.total) * 100} className="h-2" />
             <p className="text-xs text-muted-foreground text-center">
-              AI is considering seniority, specialty, leaves & fairness rules
+              Applying hospital rules: Fellow 3-month restriction, PG year limits, workload balancing
             </p>
           </div>
         )}
@@ -422,10 +412,10 @@ const MonthlyRosterGenerator: React.FC = () => {
 
         {/* Info */}
         <div className="flex flex-wrap gap-2 justify-center">
-          <Badge variant="outline" className="text-[10px]">Seniority Rules</Badge>
+          <Badge variant="outline" className="text-[10px]">Fellow 3-Month Rule</Badge>
+          <Badge variant="outline" className="text-[10px]">PG Year Restrictions</Badge>
           <Badge variant="outline" className="text-[10px]">Leave Aware</Badge>
-          <Badge variant="outline" className="text-[10px]">Camp Schedules</Badge>
-          <Badge variant="outline" className="text-[10px]">Workload Fairness</Badge>
+          <Badge variant="outline" className="text-[10px]">Workload Balancing</Badge>
         </div>
       </CardContent>
     </Card>

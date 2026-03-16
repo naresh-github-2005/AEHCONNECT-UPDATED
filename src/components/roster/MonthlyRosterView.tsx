@@ -22,7 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { exportMonthlyToPDF, exportMonthlyToExcel } from '@/lib/exportUtils';
+import { exportMonthlyToPDF, exportMonthlyToExcel, exportOPPostingPDF } from '@/lib/exportUtils';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -39,6 +39,7 @@ interface DutyAssignment {
     id: string;
     name: string;
     phone: string;
+    designation: string | null;
   };
 }
 
@@ -79,7 +80,7 @@ const MonthlyRosterView: React.FC = () => {
           start_time,
           end_time,
           unit,
-          doctor:doctors!inner(id, name, phone)
+          doctor:doctors!inner(id, name, phone, designation)
         `)
         .gte('duty_date', format(monthStart, 'yyyy-MM-dd'))
         .lte('duty_date', format(monthEnd, 'yyyy-MM-dd'))
@@ -206,16 +207,28 @@ const MonthlyRosterView: React.FC = () => {
       toast.error('No data to export');
       return;
     }
+    
+    // Calculate day counts per unit for each doctor
+    const doctorUnitCounts: Record<string, Record<string, number>> = {};
+    assignments.forEach(a => {
+      if (!doctorUnitCounts[a.doctor.id]) {
+        doctorUnitCounts[a.doctor.id] = {};
+      }
+      const unit = a.unit;
+      doctorUnitCounts[a.doctor.id][unit] = (doctorUnitCounts[a.doctor.id][unit] || 0) + 1;
+    });
+    
+    // Export in OP Doctors Posting format (units as columns, doctors listed with designation)
+    // For each assignment, add the day count for that doctor in that unit
     const exportData = assignments.map(a => ({
       doctorName: a.doctor.name,
+      designation: a.doctor.designation,
       unit: a.unit,
-      dutyType: a.duty_type,
-      date: format(new Date(a.duty_date), 'MMM d, yyyy'),
-      startTime: a.start_time,
-      endTime: a.end_time,
+      dayCount: doctorUnitCounts[a.doctor.id]?.[a.unit] || 0,
     }));
-    exportMonthlyToPDF(exportData, format(currentDate, 'MMMM yyyy'));
-    toast.success('PDF exported successfully');
+    
+    exportOPPostingPDF(exportData, format(currentDate, 'MMMM yyyy'));
+    toast.success('OP Doctors Posting PDF exported successfully');
   };
 
   const handleExportExcel = () => {
@@ -272,11 +285,11 @@ const MonthlyRosterView: React.FC = () => {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleExportPDF}>
                 <FileText className="w-4 h-4 mr-2" />
-                Export as PDF
+                OP Doctors Posting (PDF)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleExportExcel}>
                 <FileSpreadsheet className="w-4 h-4 mr-2" />
-                Export as Excel
+                Detailed Roster (Excel)
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

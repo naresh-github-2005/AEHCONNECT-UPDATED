@@ -71,13 +71,19 @@ const Auth: React.FC = () => {
     }
   };
 
-  const fillDemoCredentials = (type: 'admin' | 'doctor') => {
+  const fillDemoCredentials = (type: 'admin' | 'doctor' | 'fellow' | 'pg') => {
     if (type === 'admin') {
       setEmail('admin@hospital.com');
       setPassword('admin123');
-    } else {
+    } else if (type === 'doctor') {
       setEmail('doctor@hospital.com');
       setPassword('doctor123');
+    } else if (type === 'fellow') {
+      setEmail('fellow@hospital.com');
+      setPassword('fellow123');
+    } else if (type === 'pg') {
+      setEmail('pg@hospital.com');
+      setPassword('pg123');
     }
     setErrors({});
   };
@@ -218,6 +224,22 @@ const Auth: React.FC = () => {
                 className="h-10"
               >
                 Doctor Demo
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fillDemoCredentials('fellow')}
+                className="h-10"
+              >
+                Fellow Demo
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fillDemoCredentials('pg')}
+                className="h-10"
+              >
+                PG Demo
               </Button>
             </div>
           </CardContent>

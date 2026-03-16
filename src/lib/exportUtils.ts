@@ -12,6 +12,13 @@ interface DutyExportData {
   endTime: string;
 }
 
+interface OPPostingExportData {
+  doctorName: string;
+  designation: string | null;
+  unit: string;
+  dayCount?: number; // For PGs/Fellows - how many days in this unit
+}
+
 interface DoctorStatsExportData {
   doctorName: string;
   unit: string;
@@ -262,4 +269,167 @@ export const exportMonthlyToExcel = (
   
   const safeFilename = monthYear.replace(/\s+/g, '-').toLowerCase();
   XLSX.writeFile(workbook, `monthly-roster-${safeFilename}.xlsx`);
+};
+
+/**
+ * Export OP Doctors Posting PDF - Format like hospital posting sheet
+ * Shows units as columns with doctors listed under each unit
+ */
+export const exportOPPostingPDF = (
+  data: OPPostingExportData[],
+  monthYear: string
+) => {
+  // Use landscape for wider table
+  const doc = new jsPDF('landscape');
+  
+  // Format designation for display
+  const formatDesignation = (designation: string | null): string => {
+    if (!designation) return '';
+    const upper = designation.toUpperCase();
+    if (upper === 'PG') return 'PG';
+    if (upper === 'FELLOW') return 'Fellow';
+    if (upper === 'MO') return 'MO';
+    if (upper === 'CONSULTANT') return 'Consultant';
+    if (upper === 'SO') return 'SO';
+    return designation;
+  };
+  
+  // Group doctors by unit with day counts
+  const doctorsByUnit: Record<string, string[]> = {};
+  data.forEach(item => {
+    if (!doctorsByUnit[item.unit]) {
+      doctorsByUnit[item.unit] = [];
+    }
+    const designation = formatDesignation(item.designation);
+    const isPGorFellow = designation === 'PG' || designation === 'Fellow';
+    
+    // For PGs/Fellows, show day count in parentheses
+    let doctorEntry = item.doctorName;
+    if (designation) {
+      if (isPGorFellow && item.dayCount) {
+        doctorEntry = `${item.doctorName} (${designation}-${item.dayCount}d)`;
+      } else {
+        doctorEntry = `${item.doctorName} (${designation})`;
+      }
+    }
+    
+    // Avoid duplicates
+    if (!doctorsByUnit[item.unit].includes(doctorEntry)) {
+      doctorsByUnit[item.unit].push(doctorEntry);
+    }
+  });
+  
+  // Define unit order matching the image
+  const unitOrder = [
+    'Unit 1', 'Unit 2', 'Unit 3', 'Unit 4',
+    'Cornea', 'Cornea OT', 
+    'Retina', 'Retina OT',
+    'Glaucoma', 
+    'Cataract OT',
+    'General Ward', 
+    'Emergency', 'Emergency Night',
+    'Night Duty'
+  ];
+  
+  // Get all unique units, prioritizing the defined order
+  const allUnits = [...new Set([...unitOrder, ...Object.keys(doctorsByUnit)])];
+  const orderedUnits = allUnits.filter(unit => doctorsByUnit[unit] && doctorsByUnit[unit].length > 0);
+  
+  // Split units into columns (max 6 columns per row for readability)
+  const columnsPerPage = 7;
+  
+  // Title - styled like the image
+  doc.setFillColor(255, 193, 7); // Yellow/Gold like in image
+  doc.rect(0, 0, 297, 20, 'F');
+  
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text(`OP DOCTORS POSTING ${monthYear.toUpperCase()}`, 148.5, 13, { align: 'center' });
+  
+  // Subtitle
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Generated on ${format(new Date(), 'PPP')}`, 148.5, 28, { align: 'center' });
+  
+  // Find the maximum number of doctors in any unit
+  const maxDoctors = Math.max(...Object.values(doctorsByUnit).map(arr => arr.length), 0);
+  
+  // Create table data - each row is S.NO + doctors from each unit
+  const tableHeaders: string[] = [];
+  const tableData: string[][] = [];
+  
+  // Build headers with unit names (S.NO columns for each unit pair)
+  orderedUnits.forEach((unit, idx) => {
+    if (idx % 2 === 0 || idx === orderedUnits.length - 1) {
+      tableHeaders.push('S.NO');
+    }
+    tableHeaders.push(unit.toUpperCase());
+  });
+  
+  // Build rows
+  for (let i = 0; i < maxDoctors; i++) {
+    const row: string[] = [];
+    orderedUnits.forEach((unit, idx) => {
+      if (idx % 2 === 0 || idx === orderedUnits.length - 1) {
+        row.push((i + 1).toString());
+      }
+      const doctors = doctorsByUnit[unit] || [];
+      row.push(doctors[i] || '');
+    });
+    tableData.push(row);
+  }
+  
+  // Alternative simpler format - just units as headers, doctors as rows
+  const simpleHeaders = orderedUnits.map(u => u.toUpperCase());
+  const simpleData: string[][] = [];
+  
+  for (let i = 0; i < maxDoctors; i++) {
+    const row: string[] = [];
+    orderedUnits.forEach(unit => {
+      const doctors = doctorsByUnit[unit] || [];
+      row.push(doctors[i] || '');
+    });
+    simpleData.push(row);
+  }
+  
+  // Create the table
+  autoTable(doc, {
+    startY: 34,
+    head: [simpleHeaders],
+    body: simpleData,
+    styles: { 
+      fontSize: 8,
+      cellPadding: 2,
+      lineColor: [0, 0, 0],
+      lineWidth: 0.1,
+    },
+    headStyles: { 
+      fillColor: [255, 193, 7], // Yellow/Gold
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      halign: 'center',
+      fontSize: 8,
+    },
+    bodyStyles: {
+      halign: 'left',
+    },
+    alternateRowStyles: { 
+      fillColor: [255, 255, 255] 
+    },
+    columnStyles: orderedUnits.reduce((acc, _, idx) => {
+      acc[idx] = { cellWidth: 'auto', minCellWidth: 25 };
+      return acc;
+    }, {} as Record<number, { cellWidth: string; minCellWidth: number }>),
+    didParseCell: function(data) {
+      // Highlight header row
+      if (data.section === 'head') {
+        data.cell.styles.fillColor = [255, 193, 7];
+      }
+    }
+  });
+  
+  const safeFilename = monthYear.replace(/\s+/g, '-').toLowerCase();
+  doc.save(`op-doctors-posting-${safeFilename}.pdf`);
 };

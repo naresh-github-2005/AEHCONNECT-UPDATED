@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Direct API Test - Rosters Table</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            background: #1a1a1a; 
+            color: #0f0; 
+            padding: 20px; 
+        }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .info { color: #0ff; }
+        pre { 
+            background: #000; 
+            padding: 15px; 
+            border: 1px solid #0f0;
+            overflow-x: auto;
+        }
+        button {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            font-family: monospace;
+            margin: 5px;
+        }
+        button:hover { background: #0ff; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Direct Supabase API Test</h1>
+    <p class="info">Testing if 'rosters' table is accessible via REST API</p>
+    
+    <button onclick="testTablesExist()">1. Check Tables Exist</button>
+    <button onclick="testRostersRead()">2. Test Rosters SELECT</button>
+    <button onclick="testRostersInsert()">3. Test Rosters INSERT</button>
+    <button onclick="testCleanup()">4. Cleanup Test Data</button>
+    
+    <h2>Results:</h2>
+    <pre id="output">Click buttons above to run tests...</pre>
+
+    <script>
+        const SUPABASE_URL = 'https://kkinsccdzkvwqqrswkxa.supabase.co';
+        const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || prompt('Enter Supabase Anon Key:');
+        
+        const log = (msg, type = 'info') => {
+            const output = document.getElementById('output');
+            const color = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            output.innerHTML += `<span class="${color}">${new Date().toISOString()} - ${msg}</span>\n`;
+        };
+
+        async function testTablesExist() {
+            log('═══════════════════════════════════════', 'info');
+            log('TEST 1: Checking if tables exist in PostgREST', 'info');
+            log('═══════════════════════════════════════', 'info');
+            
+            const tables = ['rosters', 'departments', 'roster_assignments'];
+            
+            for (const table of tables) {
+                try {
+                    const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?limit=0`, {
+                        headers: {
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        log(`✅ Table '${table}' EXISTS and is accessible`, 'success');
+                    } else {
+                        log(`❌ Table '${table}' NOT FOUND (${response.status})`, 'error');
+                        const error = await response.text();
+                        log(`   Error: ${error}`, 'error');
+                    }
+                } catch (err) {
+                    log(`❌ Error checking '${table}': ${err.message}`, 'error');
+                }
+            }
+        }
+
+        async function testRostersRead() {
+            log('\n═══════════════════════════════════════', 'info');
+            log('TEST 2: Reading from rosters table', 'info');
+            log('═══════════════════════════════════════', 'info');
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/rosters?select=*`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ SELECT successful!`, 'success');
+                    log(`   Rows found: ${data.length}`, 'success');
+                    log(`   Data: ${JSON.stringify(data, null, 2)}`, 'info');
+                } else {
+                    log(`❌ SELECT failed (${response.status})`, 'error');
+                    const error = await response.text();
+                    log(`   Error: ${error}`, 'error');
+                }
+            } catch (err) {
+                log(`❌ Error: ${err.message}`, 'error');
+            }
+        }
+
+        async function testRostersInsert() {
+            log('\n═══════════════════════════════════════', 'info');
+            log('TEST 3: Inserting test data into rosters', 'info');
+            log('═══════════════════════════════════════', 'info');
+            
+            try {
+                const testData = {
+                    month: '2026-99',
+                    status: 'DRAFT'
+                };
+                
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/rosters`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ INSERT successful!`, 'success');
+                    log(`   Created: ${JSON.stringify(data, null, 2)}`, 'success');
+                } else {
+                    log(`❌ INSERT failed (${response.status})`, 'error');
+                    const error = await response.text();
+                    log(`   Error: ${error}`, 'error');
+                }
+            } catch (err) {
+                log(`❌ Error: ${err.message}`, 'error');
+            }
+        }
+
+        async function testCleanup() {
+            log('\n═══════════════════════════════════════', 'info');
+            log('TEST 4: Cleaning up test data', 'info');
+            log('═══════════════════════════════════════', 'info');
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/rosters?month=eq.2026-99`, {
+                    method: 'DELETE',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                
+                if (response.ok) {
+                    log(`✅ Cleanup successful!`, 'success');
+                } else {
+                    log(`❌ Cleanup failed (${response.status})`, 'error');
+                    const error = await response.text();
+                    log(`   Error: ${error}`, 'error');
+                }
+            } catch (err) {
+                log(`❌ Error: ${err.message}`, 'error');
+            }
+        }
+
+        // Run first test automatically
+        setTimeout(() => {
+            log('Auto-running first test in 2 seconds...\n', 'info');
+            setTimeout(testTablesExist, 2000);
+        }, 100);
+    </script>
+</body>
+</html>
